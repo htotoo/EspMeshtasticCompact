@@ -1,0 +1,163 @@
+menu "SX126X Configuration"
+
+	config GPIO_RANGE_MAX
+		int
+		default 33 if IDF_TARGET_ESP32
+		default 46 if IDF_TARGET_ESP32S2
+		default 48 if IDF_TARGET_ESP32S3
+		default 18 if IDF_TARGET_ESP32C2
+		default 19 if IDF_TARGET_ESP32C3
+		default 30 if IDF_TARGET_ESP32C6
+
+	choice FREQUENCY
+		prompt "Frequency to use"
+		default 433MHZ
+		help
+			Select Frequency to use.
+		config 433MHZ
+			bool "433MHz"
+			help
+				Frequency is 433MHz.
+		config 866MHZ
+			bool "866MHz"
+			help
+				Frequency is 866MHz.
+		config 915MHZ
+			bool "915MHz"
+			help
+				Frequency is 915MHz.
+		config OTHER
+			bool "Other"
+			help
+				Other Frequency.
+	endchoice
+
+	config OTHER_FREQUENCY
+		depends on OTHER
+		int "Frequency to use[MHz]"
+		range 1 999
+		default 433
+		help
+			Frequency to use[MHz].
+
+	config ADVANCED
+		bool "Enable Advanced settings"
+		default false
+		help
+			Enable Advanced settings.
+
+	config CODING_RATE
+		depends on ADVANCED
+		int "Error coding rate"
+		range 1 4
+		default 1
+		help
+			Error coding rate.
+
+	config BANDWIDTH
+		depends on ADVANCED
+		int "Signal Bandwidth"
+		range 0 6
+		default 4
+		help
+			Signal Bandwidth.
+
+	config SF_RATE
+		depends on ADVANCED
+		int "Spreading Factor"
+		range 5 12
+		default 7
+		help
+			Spreading Factor.
+
+	config USE_TCXO
+		bool "Enable TCXO"
+		default false
+		help
+			Enable Temperature-Compensated Crystal Oscillator.
+
+	config MISO_GPIO
+		int "SX126X MISO GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 19 if IDF_TARGET_ESP32
+		default 37 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  4 # C3 and others
+		help
+			Pin Number to be used as the MISO SPI signal.
+
+	config SCLK_GPIO
+		int "SX126X SCLK GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 18 if IDF_TARGET_ESP32
+		default 36 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  5 # C3 and others
+		help
+			Pin Number to be used as the SCLK SPI signal.
+
+	config MOSI_GPIO
+		int "SX126X MOSI GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 23 if IDF_TARGET_ESP32
+		default 35 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  6 # C3 and others
+		help
+			Pin Number to be used as the MOSI SPI signal.
+
+	config NSS_GPIO
+		int "SX126X NSS GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 15 if IDF_TARGET_ESP32
+		default 34 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  7 # C3 and others
+		help
+			Pin Number to be used as the NSS SPI signal.
+
+	config RST_GPIO
+		int "SX126X RST GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 16 if IDF_TARGET_ESP32
+		default 38 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  2 # C3 and others
+		help
+			Pin Number to be used as the RST signal.
+
+	config BUSY_GPIO
+		int "SX126X BUSY GPIO"
+		range 0 GPIO_RANGE_MAX
+		default 17 if IDF_TARGET_ESP32
+		default 39 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+		default  3 # C3 and others
+		help
+			Pin Number to be used as the BUSY signal.
+
+	config TXEN_GPIO
+		int "SX126X TXEN GPIO"
+		range -1 GPIO_RANGE_MAX
+		default -1
+		help
+			Pin Number to be used as the TXEN signal.
+
+	config RXEN_GPIO
+		int "SX126X RXEN GPIO"
+		range -1 GPIO_RANGE_MAX
+		default -1
+		help
+			Pin Number to be used as the RXEN signal.
+
+	choice SPI_HOST
+		prompt "SPI peripheral that controls this bus"
+		default SPI2_HOST
+		help
+			Select SPI peripheral that controls this bus.
+		config SPI2_HOST
+			bool "SPI2_HOST"
+			help
+				Use SPI2_HOST. This is also called HSPI_HOST.
+		config SPI3_HOST
+			depends on IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+			bool "SPI3_HOST"
+			help
+				USE SPI3_HOST. This is also called VSPI_HOST
+	endchoice
+
+endmenu
