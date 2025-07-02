@@ -63,8 +63,29 @@ void task_secondary(void* pvParameters) {
             int8_t rssi, snr;
             GetPacketStatus(&rssi, &snr);
             printf("rssi=%d[dBm] snr=%d[dB]\n", rssi, snr);
+            // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
+            if (rxLen < 0x10) {
+                ESP_LOGE(TAG, "Received packet too short: %d bytes", rxLen);
+                continue;
+            }
+            uint32_t packet_dest = (rxData[0] << 24) | (rxData[1] << 16) | (rxData[2] << 8) | rxData[3];
+            uint32_t packet_src = (rxData[4] << 24) | (rxData[5] << 16) | (rxData[6] << 8) | rxData[7];
+            uint32_t packet_header = (rxData[8] << 24) | (rxData[9] << 16) | (rxData[10] << 8) | rxData[11];
+            uint8_t packet_flags = rxData[12];
+            uint8_t packet_chan_flags = rxData[13];
+            uint8_t packet_next_hop = rxData[14];
+            uint8_t packet_relay_node = rxData[15];
+            ESP_LOGI(TAG, "Received packet: dest=%" PRId32 ", src=%" PRId32 ", header=%" PRId32 ", flags=0x%02X, chan_flags=0x%02X, next_hop=%d, relay_node=%d",
+                     packet_dest, packet_src, packet_header, packet_flags, packet_chan_flags, packet_next_hop, packet_relay_node);
+            // extract header //todo fix https://github.com/meshtastic/firmware/blob/e505ec847e20167ceca273fe22872720a5df7439/src/mesh/RadioLibInterface.cpp#L453
+            uint8_t packet_hop_limit = (packet_header >> 24) & 0xFF;
+            bool packet_want_Ack = (packet_header >> 2) & 0x1;
+            bool packet_mqtt = (packet_header >> 3) & 0x1;
+            uint8_t packet_hop_start = (packet_header >> 4) & 0xFF;
+            ESP_LOGI(TAG, "Header: hop_limit=%d, want_ack=%d, mqtt=%d", packet_hop_limit, packet_want_Ack, packet_mqtt);
+
             meshtastic_MeshPacket mesh_packet = meshtastic_MeshPacket_init_zero;
-            bool ret = pb_decode_from_bytes(rxData, rxLen, meshtastic_MeshPacket_fields, &mesh_packet);
+            bool ret = pb_decode_from_bytes(rxData + 0x10, rxLen - 0x10, meshtastic_MeshPacket_fields, &mesh_packet);
             if (ret) {
                 ESP_LOGI(TAG, "Decoded MeshPacket: from=%" PRIu32 ", to=%" PRIu32 ", channel=%" PRIu8 ", id=%" PRIu32,
                          mesh_packet.from, mesh_packet.to, mesh_packet.channel, mesh_packet.id);
@@ -105,5 +126,6 @@ void app_main(void) {
     bool crcOn = true;
     bool invertIrq = false;
     LoRaConfig(spreadingFactor, bandwidth, codingRate, preambleLength, payloadLen, crcOn, invertIrq);
+    SetSyncWord(0x2B);  // Set sync word for LoRaWAN
     xTaskCreate(&task_secondary, "SECONDARY", 1024 * 4, NULL, 5, NULL);
 }
