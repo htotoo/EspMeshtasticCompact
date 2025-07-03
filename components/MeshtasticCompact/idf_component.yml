@@ -1,1 +1,6 @@
 version: "0.0.1"
+dependencies:
+  idf:
+    version: ">=5.1.0"
+  jgromes/radiolib:
+    version: ">=7.2.0"

@@ -20,3 +20,4 @@ sdkconfig.old
 
 .devcontainer/
 .vscode/
+managed_components/
