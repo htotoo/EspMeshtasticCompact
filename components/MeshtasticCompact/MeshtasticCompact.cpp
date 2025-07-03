@@ -147,18 +147,24 @@ bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
         ESP_LOGI(TAG, "Header flags: hop_limit=%u, want_ack=%d, mqtt=%d, hopstart=%u", packet_hop_limit, packet_want_Ack, packet_mqtt, packet_hop_start);
 
         uint8_t decrypted_data[256] = {0};
-        meshtastic_MeshPacket mesh_packet = meshtastic_MeshPacket_init_zero;
+        meshtastic_Data decodedtmp;
+        memset(&decodedtmp, 0, sizeof(decodedtmp));
         ESP_LOGI(TAG, "Attempting to decrypt payload...");
-        if (decrypt_meshtastic_payload(default_channel_key, packet_id, packet_src, &data[16], decrypted_data, len - 16)) {
+        if (decrypt_meshtastic_payload(default_l1_key, sizeof(default_l1_key) * 8, packet_id, packet_src, &data[16], decrypted_data, len - 16)) {
             ESP_LOGI(TAG, "Decryption successful!");
             ESP_LOG_BUFFER_HEX(TAG, decrypted_data, len - 16);
-            bool ret = pb_decode_from_bytes(decrypted_data, len - 16, meshtastic_MeshPacket_fields, &mesh_packet);
+            bool ret = pb_decode_from_bytes(decrypted_data, len - 16, &meshtastic_Data_msg, &decodedtmp);
             if (ret) {
-                ESP_LOGI(TAG, "Decoded MeshPacket: from=%" PRIu32 ", to=%" PRIu32 ", channel=%" PRIu8 ", id=%" PRIu32,
-                         mesh_packet.from, mesh_packet.to, mesh_packet.channel, mesh_packet.id);
-                ESP_LOGI(TAG, "rx_time=%" PRIu32 ", rx_snr=%.2f, hop_limit=%" PRIu8,
-                         mesh_packet.rx_time, mesh_packet.rx_snr, mesh_packet.hop_limit);
-                ESP_LOGI(TAG, "Payload variant: %d", mesh_packet.which_payload_variant);
+                ESP_LOGI(TAG, "Decoded Meshtastic Data:");
+                ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
+                ESP_LOGI(TAG, "Payload: %s", decodedtmp.payload.bytes);
+                ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
+                ESP_LOGI(TAG, "Dest: 0x%08lX", decodedtmp.dest);
+                ESP_LOGI(TAG, "Source: 0x%08lX", decodedtmp.source);
+                ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);
+                ESP_LOGI(TAG, "Reply ID: %" PRIu32, decodedtmp.reply_id);
+                ESP_LOGI(TAG, "Emoji: %" PRIu32, decodedtmp.emoji);
+                ESP_LOGI(TAG, "Bitfield: 0x%02X", decodedtmp.bitfield);
             } else {
                 ESP_LOGE(TAG, "Failed to decode MeshPacket");
             }
@@ -183,8 +189,8 @@ bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
  * @param len           The length of the data to decrypt.
  * @return              True on success, false on failure.
  */
-bool MeshtasticCompact::decrypt_meshtastic_payload(const uint8_t* key, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len) {
-    int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, 256);
+bool MeshtasticCompact::decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len) {
+    int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, keySize);
     if (ret != 0) {
         ESP_LOGE(TAG, "mbedtls_aes_setkey_enc failed with error: -0x%04x", -ret);
         mbedtls_aes_free(&aes_ctx);
