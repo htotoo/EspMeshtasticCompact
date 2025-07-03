@@ -4,8 +4,7 @@
 #include "meshtastic/mesh.pb.h"
 #include "pb.h"
 #include "pb_decode.h"
-#include "mbedtls/aes.h"
-#include <arpa/inet.h>
+#include "pb_encode.h"
 
 #define TAG "MeshtasticCompact"
 
@@ -20,9 +19,14 @@ volatile bool packetFlag = false;
 void IRAM_ATTR onPacketReceived() {
     packetFlag = true;
 }
-MeshtasticCompact::MeshtasticCompact() {}
+MeshtasticCompact::MeshtasticCompact() {
+    mbedtls_aes_init(&aes_ctx);
+}
 
-MeshtasticCompact::~MeshtasticCompact() {}
+MeshtasticCompact::~MeshtasticCompact() {
+    mbedtls_aes_free(&aes_ctx);
+}
+
 bool MeshtasticCompact::RadioInit() {
     ESP_LOGI(TAG, "Init");
     int state = radio.begin(433.125, 250.0, 11, 5, 0x2b, 10, 16, 1.8, false);
@@ -58,7 +62,6 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             int rxLen = mshcomp->radio.getPacketLength();
             if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
             int err = mshcomp->radio.readData(rxData, rxLen);
-            // uint8_t rxLen = LoRaReceive(rxData, sizeof(rxData));
             mshcomp->radio.startReceive();
             if (err >= 0) {
                 float rssi, snr;
@@ -80,10 +83,8 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
                 }
             }
         }
-
-        vTaskDelay(1);  // Avoid WatchDog alerts
+        vTaskDelay(1);
     }  // end while
-
     // never reach here
     vTaskDelete(NULL);
 }
@@ -103,6 +104,16 @@ bool MeshtasticCompact::pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbu
     }
 }
 
+size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct) {
+    pb_ostream_t stream = pb_ostream_from_buffer(destbuf, destbufsize);
+    if (!pb_encode(&stream, fields, src_struct)) {
+        printf("Panic: can't encode protobuf reason='%s'", PB_GET_ERROR(&stream));
+        return 0;
+    } else {
+        return stream.bytes_written;
+    }
+}
+
 bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
     if (len > 0) {
         printf("Receive rxLen:%d\n", len);
@@ -111,37 +122,21 @@ bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
         }
         printf("\n");
 
-        for (int i = 0; i < len; i++) {
-            if (data[i] > 0x19 && data[i] < 0x7F) {
-                char myChar = data[i];
-                printf("%c", myChar);
-            } else {
-                printf("?");
-            }
-        }
-        printf("\n");
-
         // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
         if (len < 0x10) {
             ESP_LOGE(TAG, "Received packet too short: %d bytes", len);
             return false;
         }
-        uint32_t packet_dest_net, packet_src_net, packet_id_net;
-
-        // Copy the bytes directly from the buffer
-        memcpy(&packet_dest_net, &data[0], sizeof(uint32_t));
-        memcpy(&packet_src_net, &data[4], sizeof(uint32_t));
-        memcpy(&packet_id_net, &data[8], sizeof(uint32_t));
-
-        // Convert from Network-to-Host-Long byte order
-        uint32_t packet_dest = (packet_dest_net);
-        uint32_t packet_src = (packet_src_net);
-        uint32_t packet_id = (packet_id_net);
+        uint32_t packet_dest, packet_src, packet_id;
+        memcpy(&packet_dest, &data[0], sizeof(uint32_t));
+        memcpy(&packet_src, &data[4], sizeof(uint32_t));
+        memcpy(&packet_id, &data[8], sizeof(uint32_t));
 
         uint8_t packet_flags = data[12];
         uint8_t packet_chan_hash = data[13];
         uint8_t packet_next_hop = data[14];
         uint8_t packet_relay_node = data[15];
+
         ESP_LOGI(TAG, "Received packet: dest=0x%08lX, src=0x%08lX, id=%" PRIu32 ", flags=0x%02X, chan_hash=0x%02X, next_hop=%d, relay_node=%d",
                  packet_dest, packet_src, packet_id, packet_flags, packet_chan_hash, packet_next_hop, packet_relay_node);
         // extract flags  https://github.com/meshtastic/firmware/blob/e505ec847e20167ceca273fe22872720a5df7439/src/mesh/RadioLibInterface.cpp#L453
@@ -152,21 +147,18 @@ bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
         ESP_LOGI(TAG, "Header flags: hop_limit=%u, want_ack=%d, mqtt=%d, hopstart=%u", packet_hop_limit, packet_want_Ack, packet_mqtt, packet_hop_start);
 
         uint8_t decrypted_data[256] = {0};
+        meshtastic_MeshPacket mesh_packet = meshtastic_MeshPacket_init_zero;
         ESP_LOGI(TAG, "Attempting to decrypt payload...");
-        // Zero out the remaining bytes in data[] after the actual payload
-        if (len < sizeof(data)) {
-            memset(&data[len], 0, sizeof(data) - len);
-        }
         if (decrypt_meshtastic_payload(default_channel_key, packet_id, packet_src, &data[16], decrypted_data, len - 16)) {
             ESP_LOGI(TAG, "Decryption successful!");
             ESP_LOG_BUFFER_HEX(TAG, decrypted_data, len - 16);
-            meshtastic_MeshPacket mesh_packet = meshtastic_MeshPacket_init_zero;
             bool ret = pb_decode_from_bytes(decrypted_data, len - 16, meshtastic_MeshPacket_fields, &mesh_packet);
             if (ret) {
                 ESP_LOGI(TAG, "Decoded MeshPacket: from=%" PRIu32 ", to=%" PRIu32 ", channel=%" PRIu8 ", id=%" PRIu32,
                          mesh_packet.from, mesh_packet.to, mesh_packet.channel, mesh_packet.id);
                 ESP_LOGI(TAG, "rx_time=%" PRIu32 ", rx_snr=%.2f, hop_limit=%" PRIu8,
                          mesh_packet.rx_time, mesh_packet.rx_snr, mesh_packet.hop_limit);
+                ESP_LOGI(TAG, "Payload variant: %d", mesh_packet.which_payload_variant);
             } else {
                 ESP_LOGE(TAG, "Failed to decode MeshPacket");
             }
@@ -177,17 +169,6 @@ bool MeshtasticCompact::DebugPacket(uint8_t* data, int len) {
         }
     }
     return false;
-}
-
-void MeshtasticCompact::generate_meshtastic_nonce(uint32_t packet_id, uint32_t from_node, uint8_t* nonce) {
-    // Zero out the nonce buffer initially
-    memset(nonce, 0, 16);
-
-    // Bytes 0-3: Little-endian packet ID
-    memcpy(nonce, &packet_id, sizeof(uint32_t));
-
-    // Bytes 8-11: Little-endian sender node ID
-    memcpy(nonce + 8, &from_node, sizeof(uint32_t));
 }
 
 /**
@@ -203,12 +184,6 @@ void MeshtasticCompact::generate_meshtastic_nonce(uint32_t packet_id, uint32_t f
  * @return              True on success, false on failure.
  */
 bool MeshtasticCompact::decrypt_meshtastic_payload(const uint8_t* key, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len) {
-    // 1. Initialize the mbedtls AES context
-    mbedtls_aes_context aes_ctx;
-    mbedtls_aes_init(&aes_ctx);
-
-    // 2. Set the decryption key (for CTR mode, you use the encryption key schedule)
-    // Meshtastic uses AES-256, so the key is 256 bits (32 bytes).
     int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, 256);
     if (ret != 0) {
         ESP_LOGE(TAG, "mbedtls_aes_setkey_enc failed with error: -0x%04x", -ret);
@@ -216,23 +191,20 @@ bool MeshtasticCompact::decrypt_meshtastic_payload(const uint8_t* key, uint32_t 
         return false;
     }
 
-    // 3. Prepare the nonce, stream block, and offset for AES-CTR
     uint8_t nonce[16];
     uint8_t stream_block[16];
-    size_t nc_off = 0;  // Offset in the current stream block, always start at 0
+    size_t nc_off = 0;
 
-    generate_meshtastic_nonce(packet_id, from_node, nonce);
+    memset(nonce, 0, 16);
+    memcpy(nonce, &packet_id, sizeof(uint32_t));
+    memcpy(nonce + 8, &from_node, sizeof(uint32_t));
 
-    // 4. Perform the decryption
     ret = mbedtls_aes_crypt_ctr(&aes_ctx, len, &nc_off, nonce, stream_block, encrypted_in, decrypted_out);
     if (ret != 0) {
         ESP_LOGE(TAG, "mbedtls_aes_crypt_ctr failed with error: -0x%04x", -ret);
         mbedtls_aes_free(&aes_ctx);
         return false;
     }
-
-    // 5. Clean up the context
-    mbedtls_aes_free(&aes_ctx);
 
     return true;
 }
