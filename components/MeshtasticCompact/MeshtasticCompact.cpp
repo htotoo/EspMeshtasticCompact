@@ -25,7 +25,18 @@ MeshtasticCompact::MeshtasticCompact() {
     mbedtls_aes_init(&aes_ctx);
     uint64_t mac;
     esp_efuse_mac_get_default((uint8_t*)&mac);  // Use the last 4 bytes of the MAC address as the node ID
-    my_id = (uint32_t)(mac & 0xFFFFFFFF);
+    my_nodeinfo.node_id = (uint32_t)(mac & 0xFFFFFFFF);
+    sprintf(my_nodeinfo.id, "!0x%08" PRIx32, my_nodeinfo.node_id);
+    my_nodeinfo.hw_model = (uint8_t)meshtastic_HardwareModel_DIY_V1;
+    my_nodeinfo.role = (uint8_t)meshtastic_Config_DeviceConfig_Role_CLIENT;
+    my_nodeinfo.macaddr[0] = (uint8_t)(mac >> 40);
+    my_nodeinfo.macaddr[1] = (uint8_t)(mac >> 32);
+    my_nodeinfo.macaddr[2] = (uint8_t)(mac >> 24);
+    my_nodeinfo.macaddr[3] = (uint8_t)(mac >> 16);
+    my_nodeinfo.macaddr[4] = (uint8_t)(mac >> 8);
+    my_nodeinfo.macaddr[5] = (uint8_t)(mac & 0xFF);
+    sprintf(my_nodeinfo.short_name, "MCP");
+    snprintf(my_nodeinfo.long_name, sizeof(my_nodeinfo.long_name) - 1, "MeshtasticCompact-%02" PRIx32, my_nodeinfo.node_id);
 }
 
 MeshtasticCompact::~MeshtasticCompact() {
@@ -71,32 +82,61 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 ESP_LOGI(TAG, "Send task stopped");
                 continue;
             }
-            // Prepare the packet header
-            MC_Header header = entry.header;
-            header.rssi = mshcomp->rssi;
-            header.snr = mshcomp->snr;
-
             // Prepare the payload
             uint8_t payload[256];
             size_t payload_len = mshcomp->pb_encode_to_bytes(payload, sizeof(payload), meshtastic_Data_fields, &entry.data);
-
             // Encrypt the payload if needed
             uint8_t encrypted_payload[256];
-            size_t encrypted_len = 0;
-            if (mshcomp->aes_decrypt_meshtastic_payload(mshcomp->default_l1_key, sizeof(mshcomp->default_l1_key) * 8, header.packet_id, header.srcnode, payload, encrypted_payload, payload_len)) {
-                // Send the packet
-                int err = mshcomp->radio.transmit(encrypted_payload, encrypted_len);
-                if (err >= 0) {
-                    ESP_LOGI(TAG, "Packet sent successfully: src=0x%08" PRIx32 ", dst=0x%08" PRIx32 ", id=0x%08" PRIx32, header.srcnode, header.dstnode, header.packet_id);
-                    // Optionally handle acknowledgment logic here
-                } else {
-                    ESP_LOGE(TAG, "Failed to send packet, error code: %d", err);
+            bool aesenc = true;
+            MC_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
+            if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode) {
+                bool all_zero = true;
+                for (size_t i = 0; i < 32; i++) {
+                    if (dstnode->public_key[i] != 0) {
+                        all_zero = false;
+                        break;
+                    }
                 }
+                if (!all_zero) {
+                    aesenc = false;
+                }
+            }
+
+            if (!aesenc) {
+                // private message, encrypt with that method if pubkey is availeable //todo
+                continue;
             } else {
-                ESP_LOGE(TAG, "Failed to encrypt payload");
+                if (mshcomp->aes_decrypt_meshtastic_payload(mshcomp->default_l1_key, sizeof(mshcomp->default_l1_key) * 8, entry.header.packet_id, entry.header.srcnode, payload, encrypted_payload, payload_len)) {
+                } else {
+                    ESP_LOGE(TAG, "Failed to encrypt payload");
+                    continue;
+                }
+            }
+            // here we got the encrypted payload
+            // create header. ugly but we'll reuse the payload buffer
+            memcpy(&payload[0], &entry.header.dstnode, sizeof(uint32_t));
+            memcpy(&payload[4], &entry.header.srcnode, sizeof(uint32_t));
+            memcpy(&payload[8], &entry.header.packet_id, sizeof(uint32_t));
+            payload[12] = (entry.header.hop_limit & PACKET_FLAGS_HOP_LIMIT_MASK) | (entry.header.want_ack ? PACKET_FLAGS_WANT_ACK_MASK : 0) | (entry.header.via_mqtt ? PACKET_FLAGS_VIA_MQTT_MASK : 0) | ((entry.header.hop_start & 0x07) << PACKET_FLAGS_HOP_START_SHIFT);
+            payload[13] = entry.header.chan_hash;
+            payload[14] = 0;  // entry.header.packet_next_hop;
+            payload[15] = 0;  // entry.header.packet_relay_node;
+            // copy the encrypted payload to the end of the header
+            size_t total_len = 16 + payload_len;  // 16 bytes for header + payload length
+            if (total_len > sizeof(payload)) {
+                ESP_LOGE(TAG, "Payload too large: %zu bytes", total_len);
+                continue;
+            }
+            memcpy(&payload[16], encrypted_payload, payload_len);
+            // Send the packet
+            int err = mshcomp->radio.transmit(payload, total_len);
+            if (err == RADIOLIB_ERR_NONE) {
+                ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
+            } else {
+                ESP_LOGE(TAG, "Failed to send packet, code %d", err);
             }
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);  // Wait before next send attempt
+        vTaskDelay(20 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
     // never reach here
     vTaskDelete(NULL);

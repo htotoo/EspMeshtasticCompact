@@ -222,11 +222,9 @@ class MeshtasticCompact {
         }
         return false;
     }
-    void overrideMyId(uint32_t id) {
-        my_id = id;
-    }
-    uint32_t getMyId() const {
-        return my_id;
+
+    MC_NodeInfo* getMyNodeInfo() {
+        return &my_nodeinfo;
     }
 
     NodeInfoDB nodeinfo_db;  // NodeInfo database
@@ -254,7 +252,8 @@ class MeshtasticCompact {
     float rssi, snr;
     bool is_send_enabled = true;
     uint8_t send_hop_limit = 7;  // default hop limit for sending packets
-    uint32_t my_id = 0;
+
+    MC_NodeInfo my_nodeinfo;  // My node info
 
     EspHal* hal = new EspHal(9, 11, 10);
     SX1262 radio = new Module(hal, 8, 14, 12, 13);
