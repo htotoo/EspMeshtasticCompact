@@ -21,8 +21,12 @@ class MeshtasticCompact {
 
     bool ProcessPacket(uint8_t* data, int len);
 
-    using OnMessageCallback = void (*)(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag);  // flag: 0 normal text, 1 = alert, 3 = detector sensor
+    using OnMessageCallback = void (*)(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag);  // flag: 0 normal text, 1 = alert, 3 = detector sensor, 4 ping, 5 uart, 6 range test
     void setOnMessage(OnMessageCallback cb) { onMessage = cb; }
+    void getLastSignalData(float& rssi_out, float& snr_out) {
+        rssi_out = rssi;
+        snr_out = snr;
+    }
 
    private:
     bool RadioListen();
@@ -35,6 +39,8 @@ class MeshtasticCompact {
     size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);
     static void task_listen(void* pvParameters);
     bool aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len);
+
+    float rssi, snr;
 
     EspHal* hal = new EspHal(9, 11, 10);
     SX1262 radio = new Module(hal, 8, 14, 12, 13);

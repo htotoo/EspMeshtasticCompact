@@ -33,6 +33,9 @@ void app_main(void) {
     meshtasticCompact.RadioInit();
     meshtasticCompact.setOnMessage([](uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag) {
         ESP_LOGI(TAG, "Received message on channel %d: '%s' from node %lu to node %lu. Flag: %u", chan, message.c_str(), srcnode, dstnode, flag);
+        float rssi, snr;
+        meshtasticCompact.getLastSignalData(rssi, snr);
+        ESP_LOGI(TAG, "Last signal data - RSSI: %.2f dBm, SNR: %.2f dB", rssi, snr);
     });
     while (1) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
