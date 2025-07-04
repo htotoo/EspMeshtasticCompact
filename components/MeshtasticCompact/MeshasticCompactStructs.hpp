@@ -39,4 +39,25 @@ struct MC_Position {
     uint32_t sats_in_view;    // Number of satellites in view
     uint8_t location_source;  // Source of the location data (e.g., GPS, network)
 };
+
+struct MC_NodeInfo {
+    char id[16];             // Node ID
+    char short_name[5];      // Short name of the node
+    char long_name[40];      // Long name of the node
+    uint8_t hw_model;        // Hardware model
+    uint8_t macaddr[6];      // MAC address (not used in this struct)
+    uint8_t public_key[32];  // Public key (not used in this struct)
+    uint8_t role;            // Role of the node
+};
+
+struct MC_Waypoint {
+    uint32_t id;            // Waypoint ID
+    char name[30];          // Name of the waypoint
+    char description[100];  // Description of the waypoint
+    int32_t latitude_i;     // Latitude in degrees
+    int32_t longitude_i;    // Longitude in degrees
+    uint32_t icon;          // Icon representing the waypoint
+    uint32_t expire;        // Expiration time of the waypoint
+};
+
 #endif  // MeshtasticCompactStructs_h

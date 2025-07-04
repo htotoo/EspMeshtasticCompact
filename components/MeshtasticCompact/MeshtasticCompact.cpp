@@ -111,6 +111,19 @@ void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position posit
     };
 }
 
+void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo) {
+    // should save this to contact's data //todo
+    if (onNodeInfo) {
+        onNodeInfo(header, nodeinfo);
+    };
+}
+void MeshtasticCompact::intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint) {
+    // should save this to waypoint database //todo
+    if (onWaypointMessage) {
+        onWaypointMessage(header, waypoint);
+    };
+}
+
 int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp) {
     if (len > 0) {
         // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
@@ -140,14 +153,14 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header.packet_id, header.srcnode);
         if (ret >= 0) {
-            ESP_LOGI(TAG, "Decoded Meshtastic Data:");
+            /*ESP_LOGI(TAG, "Decoded Meshtastic Data:");
             ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
             // ESP_LOGI(TAG, "Payload: %s", decodedtmp.payload.bytes);
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
             ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);
             ESP_LOGI(TAG, "Reply ID: %" PRIu32, decodedtmp.reply_id);
             ESP_LOGI(TAG, "Emoji: %" PRIu32, decodedtmp.emoji);
-            ESP_LOGI(TAG, "Bitfield: 0x%02X", decodedtmp.bitfield);
+            ESP_LOGI(TAG, "Bitfield: 0x%02X", decodedtmp.bitfield);*/
             // Process the decoded data as needed https://github.com/meshtastic/protobufs/blob/master/meshtastic/portnums.proto
             if (decodedtmp.portnum == 0) {
                 ESP_LOGI(TAG, "Received an unknown packet");
@@ -169,7 +182,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 3) {
                 ESP_LOGI(TAG, "Received a position packet");
                 // payload: protobuf Position
-                meshtastic_Position position_msg = {};  // todo add callback
+                meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
                     intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i,
                                                   .longitude_i = position_msg.longitude_i,
@@ -183,15 +196,17 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 4) {
                 ESP_LOGI(TAG, "Received a node info packet");
                 // payload: protobuf User
-                meshtastic_User user_msg = {};  // todo store, and callback
+                meshtastic_User user_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_User_msg, &user_msg)) {
-                    ESP_LOGI(TAG, "User ID: %s", user_msg.id);
-                    ESP_LOGI(TAG, "Shortname: %s", user_msg.short_name);
-                    ESP_LOGI(TAG, "Longname: %s", user_msg.long_name);
-                    ESP_LOGI(TAG, "HW Model: %d", user_msg.hw_model);
-                    // ESP_LOGI(TAG, "HW Model: %s", user_msg.macaddr);
-                    // ESP_LOGI(TAG, "HW Model: %s", user_msg.public_key);
-                    ESP_LOGI(TAG, "Role: %d", user_msg.role);
+                    MC_NodeInfo node_info;
+                    memcpy(node_info.id, user_msg.id, sizeof(node_info.id));
+                    memcpy(node_info.short_name, user_msg.short_name, sizeof(node_info.short_name));
+                    memcpy(node_info.long_name, user_msg.long_name, sizeof(node_info.long_name));
+                    memcpy(node_info.macaddr, user_msg.macaddr, sizeof(node_info.macaddr));
+                    memcpy(node_info.public_key, user_msg.public_key.bytes, sizeof(node_info.public_key));
+                    node_info.role = user_msg.role;
+                    node_info.hw_model = user_msg.hw_model;
+                    intOnNodeInfo(header, node_info);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");
                 }
@@ -219,13 +234,15 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: protobuf Waypoint
                 meshtastic_Waypoint waypoint_msg = {};  // todo store and callback
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Waypoint_msg, &waypoint_msg)) {
-                    ESP_LOGI(TAG, "Waypoint ID: %lu", waypoint_msg.id);
-                    ESP_LOGI(TAG, "Name: %s", waypoint_msg.name);
-                    ESP_LOGI(TAG, "Description: %s", waypoint_msg.description);
-                    ESP_LOGI(TAG, "Latitude: %ld", waypoint_msg.latitude_i);
-                    ESP_LOGI(TAG, "Longitude: %ld", waypoint_msg.longitude_i);
-                    ESP_LOGI(TAG, "Altitude: %lu", waypoint_msg.icon);
-                    ESP_LOGI(TAG, "Description: %lu", waypoint_msg.expire);
+                    MC_Waypoint waypoint;
+                    waypoint.latitude_i = waypoint_msg.latitude_i;
+                    waypoint.longitude_i = waypoint_msg.longitude_i;
+                    memcpy(waypoint.name, waypoint_msg.name, sizeof(waypoint.name));
+                    memcpy(waypoint.description, waypoint_msg.description, sizeof(waypoint.description));
+                    waypoint.icon = waypoint_msg.icon;
+                    waypoint.expire = waypoint_msg.expire;
+                    waypoint.id = waypoint_msg.id;
+                    intOnWaypointMessage(header, waypoint);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Waypoint");
                 }

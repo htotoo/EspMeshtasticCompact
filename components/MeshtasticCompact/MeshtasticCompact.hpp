@@ -24,6 +24,10 @@ class MeshtasticCompact {
     // callbacks
     using OnMessageCallback = void (*)(MC_Header header, MC_TextMessage message);
     using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position position);
+    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo nodeinfo);
+    using OnWaypointMessageCallback = void (*)(MC_Header header, MC_Waypoint waypoint);
+    void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
+    void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
     void setOnMessage(OnMessageCallback cb) { onMessage = cb; }
 
@@ -48,7 +52,8 @@ class MeshtasticCompact {
     // handlers
     void intOnMessage(MC_Header header, MC_TextMessage message);
     void intOnPositionMessage(MC_Header header, MC_Position position);
-
+    void intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo);
+    void intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint);
     // mesh network minimum functionality
     bool send_ack();
 
@@ -82,6 +87,8 @@ class MeshtasticCompact {
     // Function pointer for onMessage callback
     OnMessageCallback onMessage = nullptr;
     OnPositionMessageCallback onPositionMessage = nullptr;
+    OnNodeInfoCallback onNodeInfo = nullptr;
+    OnWaypointMessageCallback onWaypointMessage = nullptr;
 };
 
 #endif  // MESHTASTIC_COMPACT_H
