@@ -46,6 +46,26 @@ void app_main(void) {
         ESP_LOGI(TAG, "Source Node ID: 0x%08" PRIx32 ", Destination Node ID: 0x%08" PRIx32 ", Hop Limit: %d", header.srcnode, header.dstnode, header.hop_limit);
         ESP_LOGI(TAG, "Last signal data - RSSI: %.2f dBm, SNR: %.2f dB", header.rssi, header.snr);
     });
+    meshtasticCompact.setOnNodeInfoMessage([](MC_Header header, MC_NodeInfo nodeinfo) {
+        ESP_LOGI(TAG, "Received node info:");
+        ESP_LOGI(TAG, "Node ID: %s", nodeinfo.id);
+        ESP_LOGI(TAG, "Short Name: %s", nodeinfo.short_name);
+        ESP_LOGI(TAG, "Long Name: %s", nodeinfo.long_name);
+        ESP_LOGI(TAG, "Hardware Model: %u", nodeinfo.hw_model);
+        ESP_LOGI(TAG, "MAC Address: %02x:%02x:%02x:%02x:%02x:%02x",
+                 nodeinfo.macaddr[0], nodeinfo.macaddr[1], nodeinfo.macaddr[2],
+                 nodeinfo.macaddr[3], nodeinfo.macaddr[4], nodeinfo.macaddr[5]);
+        // ESP_LOGI(TAG, "Public Key: %s", nodeinfo.public_key);
+        ESP_LOGI(TAG, "Role: %u", nodeinfo.role);
+    });
+    meshtasticCompact.setOnWaypointMessage([](MC_Header header, MC_Waypoint waypoint) {
+        ESP_LOGI(TAG, "Received waypoint:");
+        ESP_LOGI(TAG, "Waypoint ID: %lu", waypoint.id);
+        ESP_LOGI(TAG, "Name: %s", waypoint.name);
+        ESP_LOGI(TAG, "Description: %s", waypoint.description);
+        ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld", waypoint.latitude_i, waypoint.longitude_i);
+        ESP_LOGI(TAG, "Icon: %lu, Expire: %lu", waypoint.icon, waypoint.expire);
+    });
     while (1) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
