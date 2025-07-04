@@ -5,6 +5,7 @@
 #include "pb.h"
 #include "pb_decode.h"
 #include "pb_encode.h"
+#include "unishox2.h"
 
 #define TAG "MeshtasticCompact"
 
@@ -47,6 +48,7 @@ bool MeshtasticCompact::RadioInit() {
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
+    RadioListen();  // Start listening for packets
     return true;
 }
 
@@ -94,6 +96,12 @@ bool MeshtasticCompact::RadioListen() {
     return true;
 }
 
+void MeshtasticCompact::intOnMessage(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag) {
+    if (onMessage) {
+        onMessage(chan, message, srcnode, dstnode, flag);
+    };
+}
+
 bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
     if (len > 0) {
         // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
@@ -120,8 +128,8 @@ bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
         // ESP_LOGI(TAG, "Header flags: hop_limit=%u, want_ack=%d, mqtt=%d, hopstart=%u", packet_hop_limit, packet_want_Ack, packet_mqtt, packet_hop_start);
 
         meshtastic_Data decodedtmp;
-        bool ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), packet_id, packet_src);
-        if (ret) {
+        int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), packet_id, packet_src);
+        if (ret >= 0) {
             ESP_LOGI(TAG, "Decoded Meshtastic Data:");
             ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
             // ESP_LOGI(TAG, "Payload: %s", decodedtmp.payload.bytes);
@@ -138,6 +146,7 @@ bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else if (decodedtmp.portnum == 1) {
                 ESP_LOGI(TAG, "Received a message packet");
                 // payload: utf8 text
+                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 0);
             } else if (decodedtmp.portnum == 2) {
                 ESP_LOGI(TAG, "Received a remote hardware packet");
                 // payload: protobuf HardwareMessage
@@ -156,18 +165,20 @@ bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else if (decodedtmp.portnum == 7) {
                 ESP_LOGI(TAG, "Received a compressed text message packet");
                 // payload: utf8 text with Unishox2 Compression
+                char uncompressed_data[256] = {0};
+                size_t uncompressed_size = unishox2_decompress((const char*)&decodedtmp.payload.bytes, decodedtmp.payload.size, uncompressed_data, sizeof(uncompressed_data), USX_PSET_DFLT);
+                intOnMessage(ret, std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), packet_src, packet_dest, 0);
             } else if (decodedtmp.portnum == 8) {
                 ESP_LOGI(TAG, "Received a waypoint packet");
                 // payload: protobuf Waypoint
-            } else if (decodedtmp.portnum == 9) {
-                ESP_LOGI(TAG, "Received an audio packet");
-                // payload: codec2 audio frames
             } else if (decodedtmp.portnum == 10) {
                 ESP_LOGI(TAG, "Received a detection sensor packet");
                 // payload: utf8 text
+                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 2);
             } else if (decodedtmp.portnum == 11) {
                 ESP_LOGI(TAG, "Received an alert packet");
                 // payload: utf8 text
+                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 1);
             } else if (decodedtmp.portnum == 12) {
                 ESP_LOGI(TAG, "Received a key verification packet");
                 // payload: protobuf KeyVerification
@@ -203,6 +214,12 @@ bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
     }
     return false;
 }
+
+/*
+
+DECODER HELPERS
+
+*/
 
 bool MeshtasticCompact::aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len) {
     int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, keySize);
@@ -246,19 +263,19 @@ size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsiz
     }
 }
 
-bool MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, uint32_t packet_id, uint32_t packet_src) {
+int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, uint32_t packet_id, uint32_t packet_src) {
     uint8_t decrypted_data[srcbufsize] = {0};
     memset(dest_struct, 0, dest_struct_size);
     // 1st.
     if (aes_decrypt_meshtastic_payload(default_l1_key, sizeof(default_l1_key) * 8, packet_id, packet_src, srcbuf, decrypted_data, srcbufsize)) {
-        if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return true;
+        if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return 254;
     }
     memset(dest_struct, 0, dest_struct_size);
     if (aes_decrypt_meshtastic_payload(default_chan_key, sizeof(default_chan_key) * 8, packet_id, packet_src, srcbuf, decrypted_data, srcbufsize)) {
-        if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return true;
+        if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return 0;
     }
     // todo iterate chan keys
 
     ESP_LOGI(TAG, "can't decode packet");
-    return false;
+    return -1;
 }

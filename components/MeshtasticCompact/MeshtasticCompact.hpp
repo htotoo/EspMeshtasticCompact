@@ -9,6 +9,7 @@
 #include <RadioLib.h>
 #include "EspHal.h"
 #include "mbedtls/aes.h"
+#include <string>
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
 
 class MeshtasticCompact {
@@ -17,11 +18,19 @@ class MeshtasticCompact {
     ~MeshtasticCompact();
 
     bool RadioInit();
-    bool RadioListen();
+
     bool ProcessPacket(uint8_t* data, int len);
 
+    using OnMessageCallback = void (*)(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag);  // flag: 0 normal text, 1 = alert, 3 = detector sensor
+    void setOnMessage(OnMessageCallback cb) { onMessage = cb; }
+
    private:
-    bool try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, uint32_t packet_id, uint32_t packet_src);
+    bool RadioListen();
+    // handlers
+    void intOnMessage(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag = 0);
+
+    // decoding
+    int16_t try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, uint32_t packet_id, uint32_t packet_src);
     bool pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct);
     size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);
     static void task_listen(void* pvParameters);
@@ -40,6 +49,9 @@ class MeshtasticCompact {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     mbedtls_aes_context aes_ctx;
+
+    // Function pointer for onMessage callback
+    OnMessageCallback onMessage = nullptr;
 };
 
 #endif  // MESHTASTIC_COMPACT_H
