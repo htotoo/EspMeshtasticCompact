@@ -233,6 +233,7 @@ class MeshtasticCompact {
     void SendMyNodeInfo(uint32_t dstnode = 0xffffffff) {
         SendNodeInfo(my_nodeinfo, dstnode);
     }
+    void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
 
     NodeInfoDB nodeinfo_db;  // NodeInfo database
 
@@ -275,6 +276,7 @@ class MeshtasticCompact {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     mbedtls_aes_context aes_ctx;
+    mutable std::mutex mtx;
     bool need_run = true;
 
     MeshCompactOutQueue out_queue;

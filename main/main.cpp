@@ -77,8 +77,9 @@ void app_main(void) {
         ESP_LOGI(TAG, "Icon: %lu, Expire: %lu", waypoint.icon, waypoint.expire);
         PrintHeaderInfo(header);
     });
+
     while (1) {
-        vTaskDelay(60000 / portTICK_PERIOD_MS);
+        vTaskDelay(30000 / portTICK_PERIOD_MS);
         meshtasticCompact.SendMyNodeInfo();
     }
 }

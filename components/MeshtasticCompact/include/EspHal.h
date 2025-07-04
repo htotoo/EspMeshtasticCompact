@@ -280,6 +280,7 @@ class EspHal : public RadioLibHal {
     void spiBeginTransaction() {
         // not needed - in ESP32 Arduino core, this function
         // repeats clock div, mode and bit order configuration
+        spi_device_acquire_bus(SpiHandle, portMAX_DELAY);
     }
 
     uint8_t spiTransferByte(uint8_t b) {
@@ -303,6 +304,7 @@ class EspHal : public RadioLibHal {
 
     void spiEndTransaction() {
         // nothing needs to be done here
+        spi_device_release_bus(SpiHandle);
     }
 
     void spiEnd() {

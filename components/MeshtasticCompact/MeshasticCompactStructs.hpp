@@ -67,6 +67,8 @@ struct MC_OutQueueEntry {
     MC_Header header;
     meshtastic_Data data;
     uint8_t encType = 0;  // 0 = auto, 1 = aes, 2 = key
+    uint8_t* key;
+    size_t key_len;  // Length of the key in bytes
 };
 
 #endif  // MeshtasticCompactStructs_h

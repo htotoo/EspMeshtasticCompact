@@ -111,7 +111,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 // private message, encrypt with that method if pubkey is availeable //todo
                 continue;
             } else {
-                if (mshcomp->aes_decrypt_meshtastic_payload(mshcomp->default_l1_key, sizeof(mshcomp->default_l1_key) * 8, entry.header.packet_id, entry.header.srcnode, payload, encrypted_payload, payload_len)) {
+                if (mshcomp->aes_decrypt_meshtastic_payload(entry.key, entry.key_len * 8, entry.header.packet_id, entry.header.srcnode, payload, encrypted_payload, payload_len)) {
                 } else {
                     ESP_LOGE(TAG, "Failed to encrypt payload");
                     continue;
@@ -134,17 +134,20 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             }
             memcpy(&payload[16], encrypted_payload, payload_len);
             // Send the packet
-            int err = mshcomp->radio.transmit(payload, total_len);
-            if (err == RADIOLIB_ERR_NONE) {
-                ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
-            } else {
-                ESP_LOGE(TAG, "Failed to send packet, code %d", err);
-                vTaskDelay(30 / portTICK_PERIOD_MS);
-                err = mshcomp->radio.transmit(payload, total_len);
+            {
+                std::unique_lock<std::mutex> lock(mshcomp->mtx);
+                int err = mshcomp->radio.transmit(payload, total_len);
                 if (err == RADIOLIB_ERR_NONE) {
-                    ESP_LOGI(TAG, "Packet sent successfully in 2nd try to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
+                    ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
                 } else {
-                    ESP_LOGE(TAG, "Failed to send packet 2 times in a row, code %d", err);
+                    ESP_LOGE(TAG, "Failed to send packet, code %d", err);
+                    vTaskDelay(30 / portTICK_PERIOD_MS);
+                    err = mshcomp->radio.transmit(payload, total_len);
+                    if (err == RADIOLIB_ERR_NONE) {
+                        ESP_LOGI(TAG, "Packet sent successfully in 2nd try to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
+                    } else {
+                        ESP_LOGE(TAG, "Failed to send packet 2 times in a row, code %d", err);
+                    }
                 }
             }
         }
@@ -164,13 +167,22 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
         if (packetFlag) {
             if (!mshcomp->need_run) break;
             packetFlag = false;
-            int rxLen = mshcomp->radio.getPacketLength();
-            if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
-            int err = mshcomp->radio.readData(rxData, rxLen);
-            mshcomp->radio.startReceive();
+            int err = 0;
+            int rxLen = 0;
+            {
+                std::unique_lock<std::mutex> lock(mshcomp->mtx);
+
+                rxLen = mshcomp->radio.getPacketLength();
+                if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
+                err = mshcomp->radio.readData(rxData, rxLen);
+                mshcomp->rssi = mshcomp->radio.getRSSI();
+                mshcomp->snr = mshcomp->radio.getSNR();
+                mshcomp->radio.startReceive();
+            }
             if (err >= 0) {
                 mshcomp->ProcessPacket(rxData, rxLen, mshcomp);
             }
+
             if (err < 0) {
                 if (err == RADIOLIB_ERR_RX_TIMEOUT) {
                     // timeout occurred while waiting for a packet
@@ -184,7 +196,7 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
                 }
             }
         }
-        vTaskDelay(1);
+        vTaskDelay(20 / portTICK_PERIOD_MS);  // Wait before next receive attempt
     }  // end while
     // never reach here
     vTaskDelete(NULL);
@@ -236,8 +248,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             return false;
         }
         MC_Header header;
-        header.rssi = mshcomp->rssi = mshcomp->radio.getRSSI();
-        header.snr = mshcomp->snr = mshcomp->radio.getSNR();
+        header.rssi = mshcomp->rssi;
+        header.snr = mshcomp->snr;
 
         memcpy(&header.dstnode, &data[0], sizeof(uint32_t));
         memcpy(&header.srcnode, &data[4], sizeof(uint32_t));
@@ -555,6 +567,29 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode) {
     entry.data.portnum = meshtastic_PortNum_NODEINFO_APP;  // NodeInfo portnum
     entry.data.want_response = entry.header.want_ack;      // Set want_response based on header
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_User_msg, &user_msg);
+    entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
+    entry.key_len = sizeof(default_l1_key);  // Use default channel key length
+    out_queue.push(entry);
+}
+
+void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnode, uint8_t chan, MC_MESSAGE_TYPE type, uint32_t sender_node_id) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = hal->millis();
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack //todo check
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;  // Use default channel hash
+    entry.header.via_mqtt = 0;      // Not used in this case
+    entry.encType = 1;              // AES encryption //todo create a query for it. now go with aes
+    entry.data.payload.size = text.size();
+    memcpy(entry.data.payload.bytes, text.data(), text.size());
+    entry.data.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;  // NodeInfo portnum
+    entry.data.want_response = entry.header.want_ack;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
     out_queue.push(entry);
 }
 
