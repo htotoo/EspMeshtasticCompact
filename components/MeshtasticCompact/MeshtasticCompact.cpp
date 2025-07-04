@@ -149,6 +149,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         header.via_mqtt = !!(packet_flags & PACKET_FLAGS_VIA_MQTT_MASK);
         header.hop_start = (packet_flags & PACKET_FLAGS_HOP_START_MASK) >> PACKET_FLAGS_HOP_START_SHIFT;
 
+        ESP_LOGI(TAG, "Received packet from node 0x%08" PRIx32 " to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32 ", Hop Limit: %d, Hop Start: %d, Want Ack: %d, Via MQTT: %d, RSSI: %.2f dBm, SNR: %.2f dB, Chan: %u",
+                 header.srcnode, header.dstnode, header.packet_id, header.hop_limit, header.hop_start,
+                 header.want_ack, header.via_mqtt, header.rssi, header.snr, header.chan_hash);
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header.packet_id, header.srcnode);
         if (ret >= 0) {

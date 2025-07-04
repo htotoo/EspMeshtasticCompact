@@ -129,10 +129,10 @@ class MeshtasticCompact {
     bool RadioInit();
 
     // callbacks
-    using OnMessageCallback = void (*)(MC_Header header, MC_TextMessage message);
-    using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position position);
-    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo nodeinfo);
-    using OnWaypointMessageCallback = void (*)(MC_Header header, MC_Waypoint waypoint);
+    using OnMessageCallback = void (*)(MC_Header header, MC_TextMessage& message);
+    using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position& position);
+    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo& nodeinfo);
+    using OnWaypointMessageCallback = void (*)(MC_Header header, MC_Waypoint& waypoint);
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
