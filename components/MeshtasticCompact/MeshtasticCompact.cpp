@@ -119,8 +119,8 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             memcpy(&payload[8], &entry.header.packet_id, sizeof(uint32_t));
             payload[12] = (entry.header.hop_limit & PACKET_FLAGS_HOP_LIMIT_MASK) | (entry.header.want_ack ? PACKET_FLAGS_WANT_ACK_MASK : 0) | (entry.header.via_mqtt ? PACKET_FLAGS_VIA_MQTT_MASK : 0) | ((entry.header.hop_start & 0x07) << PACKET_FLAGS_HOP_START_SHIFT);
             payload[13] = entry.header.chan_hash;
-            payload[14] = 0;  // entry.header.packet_next_hop;
-            payload[15] = 0;  // entry.header.packet_relay_node;
+            payload[14] = 0;    // entry.header.packet_next_hop;
+            payload[15] = 252;  // entry.header.packet_relay_node; //todo check
             // copy the encrypted payload to the end of the header
             size_t total_len = 16 + payload_len;  // 16 bytes for header + payload length
             if (total_len > sizeof(payload)) {
@@ -134,8 +134,16 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
             } else {
                 ESP_LOGE(TAG, "Failed to send packet, code %d", err);
+                vTaskDelay(30 / portTICK_PERIOD_MS);
+                err = mshcomp->radio.transmit(payload, total_len);
+                if (err == RADIOLIB_ERR_NONE) {
+                    ESP_LOGI(TAG, "Packet sent successfully in 2nd try to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
+                } else {
+                    ESP_LOGE(TAG, "Failed to send packet 2 times in a row, code %d", err);
+                }
             }
         }
+        mshcomp->radio.startReceive();        // Restart receiving after sending
         vTaskDelay(20 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
     // never reach here
