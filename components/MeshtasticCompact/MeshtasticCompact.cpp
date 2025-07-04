@@ -111,6 +111,7 @@ void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position posit
 
 void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo) {
     nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);
+    nodeinfo.last_updated = hal->millis();
     if (onNodeInfo) {
         onNodeInfo(header, nodeinfo);
     };

@@ -35,7 +35,18 @@ class NodeInfoDB {
                 return;
             }
         }
-        // No space: do nothing (could implement LRU or overwrite oldest if needed)
+        // No space:  LRU (overwrite the oldest entry)
+        size_t oldest_idx = 0;
+        uint32_t oldest_time = nodeinfos[0].last_updated;
+        for (size_t i = 1; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].last_updated < oldest_time) {
+                oldest_time = nodeinfos[i].last_updated;
+                oldest_idx = i;
+            }
+        }
+        nodeinfos[oldest_idx] = info;
+        // reset position validity for overwritten node
+        is_position_valid[oldest_idx] = false;
     }
 
     // Get pointer to nodeinfo by node_id, or nullptr if not found

@@ -49,6 +49,7 @@ struct MC_NodeInfo {
     uint8_t macaddr[6];      // MAC address (not used in this struct)
     uint8_t public_key[32];  // Public key (not used in this struct)
     uint8_t role;            // Role of the node
+    uint32_t last_updated;   // Last updated timestamp
 };
 
 struct MC_Waypoint {
