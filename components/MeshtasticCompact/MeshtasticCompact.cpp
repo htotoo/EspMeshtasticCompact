@@ -71,9 +71,7 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             int err = mshcomp->radio.readData(rxData, rxLen);
             mshcomp->radio.startReceive();
             if (err >= 0) {
-                mshcomp->rssi = mshcomp->radio.getRSSI();
-                mshcomp->snr = mshcomp->radio.getSNR();
-                mshcomp->ProcessPacket(rxData, rxLen);
+                mshcomp->ProcessPacket(rxData, rxLen, mshcomp);
             }
             if (err < 0) {
                 if (err == RADIOLIB_ERR_RX_TIMEOUT) {
@@ -99,40 +97,48 @@ bool MeshtasticCompact::RadioListen() {
     return true;
 }
 
-void MeshtasticCompact::intOnMessage(uint8_t chan, std::string message, uint32_t srcnode, uint32_t dstnode, uint8_t flag) {
-    // todo cache some messages.
+void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
+    // we won't cache, it is the upper layer's thing.
     if (onMessage) {
-        onMessage(chan, message, srcnode, dstnode, flag);
+        onMessage(header, message);
     };
 }
 
-int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
+void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position) {
+    // should save this to contact's data //todo
+    if (onPositionMessage) {
+        onPositionMessage(header, position);
+    };
+}
+
+int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp) {
     if (len > 0) {
         // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
         if (len < 0x10) {
             ESP_LOGE(TAG, "Received packet too short: %d bytes", len);
             return false;
         }
-        uint32_t packet_dest, packet_src, packet_id;
-        memcpy(&packet_dest, &data[0], sizeof(uint32_t));
-        memcpy(&packet_src, &data[4], sizeof(uint32_t));
-        memcpy(&packet_id, &data[8], sizeof(uint32_t));
+        MC_Header header;
+        header.rssi = mshcomp->rssi = mshcomp->radio.getRSSI();
+        header.snr = mshcomp->snr = mshcomp->radio.getSNR();
+
+        memcpy(&header.dstnode, &data[0], sizeof(uint32_t));
+        memcpy(&header.srcnode, &data[4], sizeof(uint32_t));
+        memcpy(&header.packet_id, &data[8], sizeof(uint32_t));
 
         uint8_t packet_flags = data[12];
-        uint8_t packet_chan_hash = data[13];
-        uint8_t packet_next_hop = data[14];
-        uint8_t packet_relay_node = data[15];
+        header.chan_hash = data[13];
+        // uint8_t packet_next_hop = data[14];
+        // uint8_t packet_relay_node = data[15];
 
-        // ESP_LOGI(TAG, "Received packet: dest=0x%08lX, src=0x%08lX, id=%" PRIu32 ", flags=0x%02X, chan_hash=0x%02X, next_hop=%d, relay_node=%d", packet_dest, packet_src, packet_id, packet_flags, packet_chan_hash, packet_next_hop, packet_relay_node);
-        //  extract flags  https://github.com/meshtastic/firmware/blob/e505ec847e20167ceca273fe22872720a5df7439/src/mesh/RadioLibInterface.cpp#L453
-        uint8_t packet_hop_limit = packet_flags & PACKET_FLAGS_HOP_LIMIT_MASK;
-        bool packet_want_Ack = !!(packet_flags & PACKET_FLAGS_WANT_ACK_MASK);
-        bool packet_mqtt = !!(packet_flags & PACKET_FLAGS_VIA_MQTT_MASK);
-        uint8_t packet_hop_start = (packet_flags & PACKET_FLAGS_HOP_START_MASK) >> PACKET_FLAGS_HOP_START_SHIFT;
-        // ESP_LOGI(TAG, "Header flags: hop_limit=%u, want_ack=%d, mqtt=%d, hopstart=%u", packet_hop_limit, packet_want_Ack, packet_mqtt, packet_hop_start);
+        // extract flags  https://github.com/meshtastic/firmware/blob/e505ec847e20167ceca273fe22872720a5df7439/src/mesh/RadioLibInterface.cpp#L453
+        header.hop_limit = packet_flags & PACKET_FLAGS_HOP_LIMIT_MASK;
+        header.want_ack = !!(packet_flags & PACKET_FLAGS_WANT_ACK_MASK);
+        header.via_mqtt = !!(packet_flags & PACKET_FLAGS_VIA_MQTT_MASK);
+        header.hop_start = (packet_flags & PACKET_FLAGS_HOP_START_MASK) >> PACKET_FLAGS_HOP_START_SHIFT;
 
         meshtastic_Data decodedtmp;
-        int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), packet_id, packet_src);
+        int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header.packet_id, header.srcnode);
         if (ret >= 0) {
             ESP_LOGI(TAG, "Decoded Meshtastic Data:");
             ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
@@ -148,7 +154,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else if (decodedtmp.portnum == 1) {
                 ESP_LOGI(TAG, "Received a message packet");
                 // payload: utf8 text
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 0);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT});
             } else if (decodedtmp.portnum == 2) {
                 ESP_LOGI(TAG, "Received a remote hardware packet");
                 // payload: protobuf HardwareMessage - NOT INTERESTED IN YET
@@ -165,12 +171,12 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
                 // payload: protobuf Position
                 meshtastic_Position position_msg = {};  // todo add callback
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
-                    ESP_LOGI(TAG, "Position: lat=%ld, lon=%ld, alt=%ld", position_msg.latitude_i, position_msg.longitude_i, position_msg.altitude);
-                    ESP_LOGI(TAG, "Timestamp: %lu", position_msg.timestamp);
-                    ESP_LOGI(TAG, "Speed: %lu m/s", position_msg.ground_speed);
-                    ESP_LOGI(TAG, "Sats in view: %lu", position_msg.sats_in_view);
-                    ESP_LOGI(TAG, "Source: %u", position_msg.location_source);
-                    ESP_LOGI(TAG, "Precision bits: %lu", position_msg.precision_bits);
+                    intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i,
+                                                  .longitude_i = position_msg.longitude_i,
+                                                  .altitude = position_msg.altitude,
+                                                  .ground_speed = position_msg.ground_speed,
+                                                  .sats_in_view = position_msg.sats_in_view,
+                                                  .location_source = (uint8_t)position_msg.location_source});
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
@@ -207,7 +213,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
                 // payload: utf8 text with Unishox2 Compression
                 char uncompressed_data[256] = {0};
                 size_t uncompressed_size = unishox2_decompress((const char*)&decodedtmp.payload.bytes, decodedtmp.payload.size, uncompressed_data, sizeof(uncompressed_data), USX_PSET_DFLT);
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), packet_src, packet_dest, 0);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT});
             } else if (decodedtmp.portnum == 8) {
                 ESP_LOGI(TAG, "Received a waypoint packet");
                 // payload: protobuf Waypoint
@@ -226,11 +232,11 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else if (decodedtmp.portnum == 10) {
                 ESP_LOGI(TAG, "Received a detection sensor packet");
                 // payload: utf8 text
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 2);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_DETECTOR_SENSOR});
             } else if (decodedtmp.portnum == 11) {
                 ESP_LOGI(TAG, "Received an alert packet");
                 // payload: utf8 text
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 1);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_ALERT});
             } else if (decodedtmp.portnum == 12) {
                 ESP_LOGI(TAG, "Received a key verification packet");
                 // payload: protobuf KeyVerification
@@ -242,22 +248,22 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
                 }
             } else if (decodedtmp.portnum == 32) {
                 ESP_LOGI(TAG, "Received a reply packet");
-                // payload: ASCII Plaintext
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 4);
+                // payload: ASCII Plaintext //TODO determine the in/out part and send reply if needed
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_PING});
             } else if (decodedtmp.portnum == 34) {
                 ESP_LOGI(TAG, "Received a paxcounter packet");
                 // payload: protobuf DROP
             } else if (decodedtmp.portnum == 64) {
                 ESP_LOGI(TAG, "Received a serial packet");
                 // payload: uart rx/tx data
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 5);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_UART});
             } else if (decodedtmp.portnum == 65) {
                 ESP_LOGI(TAG, "Received a STORE_FORWARD_APP  packet");
                 // payload: ?
             } else if (decodedtmp.portnum == 66) {
                 ESP_LOGI(TAG, "Received a RANGE_TEST_APP  packet");
                 // payload: ascii text
-                intOnMessage(ret, std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), packet_src, packet_dest, 6);
+                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_RANGE_TEST});
             } else if (decodedtmp.portnum == 67) {
                 ESP_LOGI(TAG, "Received a TELEMETRY_APP   packet");
                 // payload: Protobuf
@@ -303,7 +309,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else {
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
-            if (packet_want_Ack) {
+            if (header.want_ack && is_send_enabled) {
                 // todo send ack
             }
         }

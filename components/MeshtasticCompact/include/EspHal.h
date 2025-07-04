@@ -106,6 +106,10 @@ uint32_t spiFrequencyToClockDiv(uint32_t freq) {
     return (bestReg.value);
 }
 */
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+
 // create a new ESP-IDF hardware abstraction layer
 // the HAL must inherit from the base RadioLibHal class
 // and implement all of its virtual methods
@@ -313,5 +317,6 @@ class EspHal : public RadioLibHal {
     int8_t spiMOSI;
     spi_device_handle_t SpiHandle;
 };
+#pragma GCC diagnostic pop
 
 #endif
