@@ -102,6 +102,11 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 }
             }
 
+            if (entry.encType == 1)
+                aesenc = true;  // AES encryption
+            else if (entry.encType == 2)
+                aesenc = false;  // key
+
             if (!aesenc) {
                 // private message, encrypt with that method if pubkey is availeable //todo
                 continue;
@@ -203,14 +208,14 @@ void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
 }
 
 void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position) {
-    nodeinfo_db.setPosition(header.srcnode, position);
+    if (header.want_ack == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
     if (onPositionMessage) {
         onPositionMessage(header, position);
     };
 }
 
 void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo) {
-    nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);
+    nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);  // if want ack, then exchange happened, but we got info too
     nodeinfo.last_updated = hal->millis();
     if (onNodeInfo) {
         onNodeInfo(header, nodeinfo);
@@ -436,11 +441,14 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
     return false;
 }
 
-/*
+void MeshtasticCompact::setMyNames(const char* short_name, const char* long_name) {
+    strncpy(my_nodeinfo.short_name, short_name, sizeof(my_nodeinfo.short_name) - 1);
+    my_nodeinfo.short_name[sizeof(my_nodeinfo.short_name) - 1] = '\0';
+    strncpy(my_nodeinfo.long_name, long_name, sizeof(my_nodeinfo.long_name) - 1);
+    my_nodeinfo.long_name[sizeof(my_nodeinfo.long_name) - 1] = '\0';
+}
 
-DECODER HELPERS
-
-*/
+#pragma region Decoder Helpers
 
 bool MeshtasticCompact::aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len) {
     int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, keySize);
@@ -506,3 +514,48 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
     ESP_LOGI(TAG, "can't decode packet");
     return -1;
 }
+
+#pragma endregion
+
+#pragma region PacketBuilders
+
+void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = nodeinfo.node_id;
+    entry.header.packet_id = hal->millis();
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = 8;  // Use default channel hash
+    entry.header.via_mqtt = 0;   // Not used in this case
+    entry.encType = 1;           // AES encryption
+    meshtastic_User user_msg = {};
+    memcpy(user_msg.id, nodeinfo.id, sizeof(user_msg.id));
+    memcpy(user_msg.short_name, nodeinfo.short_name, sizeof(user_msg.short_name));
+    memcpy(user_msg.long_name, nodeinfo.long_name, sizeof(user_msg.long_name));
+    memcpy(user_msg.macaddr, nodeinfo.macaddr, sizeof(user_msg.macaddr));
+    memcpy(user_msg.public_key.bytes, nodeinfo.public_key, sizeof(user_msg.public_key.bytes));
+    user_msg.public_key.size = 32;  // Public key size is 32 bytes
+    bool all_zero = true;
+    for (size_t i = 0; i < sizeof(user_msg.public_key.bytes); i++) {
+        if (user_msg.public_key.bytes[i] != 0) {
+            all_zero = false;
+            break;
+        }
+    }
+    if (all_zero) {
+        user_msg.public_key.size = 0;  // Set size to 0 if all bytes are zero
+    }
+    user_msg.role = (meshtastic_Config_DeviceConfig_Role)nodeinfo.role;
+    user_msg.hw_model = (meshtastic_HardwareModel)nodeinfo.hw_model;
+    user_msg.is_licensed = false;
+    user_msg.is_unmessagable = false;
+    entry.data.portnum = meshtastic_PortNum_NODEINFO_APP;  // NodeInfo portnum
+    entry.data.want_response = entry.header.want_ack;      // Set want_response based on header
+    entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_User_msg, &user_msg);
+    out_queue.push(entry);
+}
+
+#pragma endregion

@@ -31,7 +31,7 @@ void app_main();
 
 void PrintHeaderInfo(MC_Header& header) {
     ESP_LOGI(TAG, "Source Node ID: 0x%08" PRIx32 ", Destination Node ID: 0x%08" PRIx32 ", Hop Limit: %d", header.srcnode, header.dstnode, header.hop_limit);
-    ESP_LOGI(TAG, "Last signal data - RSSI: %.2f dBm, SNR: %.2f dB", header.rssi, header.snr);
+    ESP_LOGI(TAG, "Last signal data - RSSI: %.2f dBm, SNR: %.2f dB. WantAck: %d", header.rssi, header.snr, header.want_ack ? 1 : 0);
     auto sender = meshtasticCompact.nodeinfo_db.get(header.srcnode);
     if (sender) {
         ESP_LOGI(TAG, "Sender Node: Short Name: %s, Long Name: %s", sender->short_name, sender->long_name);
@@ -78,6 +78,7 @@ void app_main(void) {
         PrintHeaderInfo(header);
     });
     while (1) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(60000 / portTICK_PERIOD_MS);
+        meshtasticCompact.SendMyNodeInfo();
     }
 }

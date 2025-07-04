@@ -66,6 +66,7 @@ struct MC_Waypoint {
 struct MC_OutQueueEntry {
     MC_Header header;
     meshtastic_Data data;
+    uint8_t encType = 0;  // 0 = auto, 1 = aes, 2 = key
 };
 
 #endif  // MeshtasticCompactStructs_h

@@ -194,7 +194,6 @@ class MeshtasticCompact {
    public:
     MeshtasticCompact();
     ~MeshtasticCompact();
-
     bool RadioInit();
 
     // callbacks
@@ -212,6 +211,7 @@ class MeshtasticCompact {
         rssi_out = rssi;
         snr_out = snr;
     }
+
     void setSendEnabled(bool enabled) {
         is_send_enabled = enabled;
     }
@@ -223,8 +223,15 @@ class MeshtasticCompact {
         return false;
     }
 
+    void setMyNames(const char* short_name, const char* long_name);
     MC_NodeInfo* getMyNodeInfo() {
         return &my_nodeinfo;
+    }
+
+    // packet senders
+    void SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff);
+    void SendMyNodeInfo(uint32_t dstnode = 0xffffffff) {
+        SendNodeInfo(my_nodeinfo, dstnode);
     }
 
     NodeInfoDB nodeinfo_db;  // NodeInfo database
