@@ -1,7 +1,6 @@
 
 #include "MeshtasticCompact.hpp"
 #include "esp_log.h"
-#include "meshtastic/mesh.pb.h"
 #include "pb.h"
 #include "pb_decode.h"
 #include "pb_encode.h"
@@ -31,6 +30,10 @@ MeshtasticCompact::MeshtasticCompact() {
 
 MeshtasticCompact::~MeshtasticCompact() {
     mbedtls_aes_free(&aes_ctx);
+    need_run = false;  // Stop the tasks
+    packetFlag = true;
+    out_queue.stop_wait();                 // Notify any waiting pop() to unblock immediately
+    vTaskDelay(100 / portTICK_PERIOD_MS);  // Give some time for tasks to finish
 }
 
 bool MeshtasticCompact::RadioInit() {
@@ -52,8 +55,51 @@ bool MeshtasticCompact::RadioInit() {
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
-    RadioListen();  // Start listening for packets
+    RadioListen();    // Start listening for packets
+    RadioSendInit();  // Start the send task
     return true;
+}
+
+void MeshtasticCompact::task_send(void* pvParameters) {
+    MeshtasticCompact* mshcomp = static_cast<MeshtasticCompact*>(pvParameters);
+    ESP_LOGI(pcTaskGetName(NULL), "Start");
+    while (mshcomp->need_run) {
+        if (mshcomp->is_send_enabled) {
+            MC_OutQueueEntry entry = mshcomp->out_queue.pop();
+            if (entry.header.srcnode == 0) {
+                // Stop flag was set, exit the task
+                ESP_LOGI(TAG, "Send task stopped");
+                continue;
+            }
+            // Prepare the packet header
+            MC_Header header = entry.header;
+            header.rssi = mshcomp->rssi;
+            header.snr = mshcomp->snr;
+
+            // Prepare the payload
+            uint8_t payload[256];
+            size_t payload_len = mshcomp->pb_encode_to_bytes(payload, sizeof(payload), meshtastic_Data_fields, &entry.data);
+
+            // Encrypt the payload if needed
+            uint8_t encrypted_payload[256];
+            size_t encrypted_len = 0;
+            if (mshcomp->aes_decrypt_meshtastic_payload(mshcomp->default_l1_key, sizeof(mshcomp->default_l1_key) * 8, header.packet_id, header.srcnode, payload, encrypted_payload, payload_len)) {
+                // Send the packet
+                int err = mshcomp->radio.transmit(encrypted_payload, encrypted_len);
+                if (err >= 0) {
+                    ESP_LOGI(TAG, "Packet sent successfully: src=0x%08" PRIx32 ", dst=0x%08" PRIx32 ", id=0x%08" PRIx32, header.srcnode, header.dstnode, header.packet_id);
+                    // Optionally handle acknowledgment logic here
+                } else {
+                    ESP_LOGE(TAG, "Failed to send packet, error code: %d", err);
+                }
+            } else {
+                ESP_LOGE(TAG, "Failed to encrypt payload");
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);  // Wait before next send attempt
+    }  // end while
+    // never reach here
+    vTaskDelete(NULL);
 }
 
 void MeshtasticCompact::task_listen(void* pvParameters) {
@@ -61,8 +107,9 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
     ESP_LOGI(pcTaskGetName(NULL), "Start");
     uint8_t rxData[256];  // Maximum Payload size of SX1261/62/68 is 255
     mshcomp->radio.startReceive();
-    while (1) {
+    while (mshcomp->need_run) {
         if (packetFlag) {
+            if (!mshcomp->need_run) break;
             packetFlag = false;
             int rxLen = mshcomp->radio.getPacketLength();
             if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
@@ -95,6 +142,11 @@ bool MeshtasticCompact::RadioListen() {
     return true;
 }
 
+bool MeshtasticCompact::RadioSendInit() {
+    // Start the send task
+    xTaskCreate(&task_send, "RadioSend", 1024 * 4, this, 5, NULL);
+    return true;
+}
 void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
     // we won't cache, it is the upper layer's thing.
     if (onMessage) {
@@ -398,6 +450,7 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
 
     if (header.chan_hash == 0 && header.dstnode != 0xffffffff) {
         // todo pki decrypt
+        ESP_LOGI(TAG, "can't decode priv packet");
         return -1;
     }
     // todo iterate chan keys

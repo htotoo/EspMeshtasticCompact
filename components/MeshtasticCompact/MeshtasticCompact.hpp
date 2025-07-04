@@ -10,7 +10,11 @@
 #include "EspHal.h"
 #include "mbedtls/aes.h"
 #include <string>
+#include "meshtastic/mesh.pb.h"
 #include "MeshasticCompactStructs.hpp"
+#include <mutex>
+#include <condition_variable>
+#include <queue>
 
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
 
@@ -121,6 +125,71 @@ class NodeInfoDB {
     bool valid[MAX_NODES] = {};
 };
 
+// Thread-safe queue for MC_OutQueueEntry with signaling and max size 10
+class MeshCompactOutQueue {
+   public:
+    static constexpr size_t MAX_ENTRIES = 10;
+
+    // Add entry to queue, returns true if successful, false if full
+    bool push(const MC_OutQueueEntry& entry) {
+        std::unique_lock<std::mutex> lock(mtx);
+        if (queue.size() >= MAX_ENTRIES) {
+            return false;
+        }
+        queue.push(entry);
+        cv.notify_one();
+        return true;
+    }
+
+    // Remove and get entry from queue, blocks if empty
+    MC_OutQueueEntry pop() {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [this] { return (!queue.empty() || stopFlag); });
+        MC_OutQueueEntry entry;
+        entry.header.srcnode = 0;
+        if (stopFlag) {
+            // Return a default-constructed (empty) entry if stopFlag is set
+            return entry;
+        }
+        entry = queue.front();
+        queue.pop();
+        return entry;
+    }
+
+    // Notify one waiting thread to unblock pop() immediately (even if queue is empty)
+    void stop_wait() {
+        stopFlag = true;
+        cv.notify_one();
+    }
+
+    // Try to remove and get entry from queue, returns true if successful
+    bool try_pop(MC_OutQueueEntry& entry) {
+        std::unique_lock<std::mutex> lock(mtx);
+        if (queue.empty()) return false;
+        entry = queue.front();
+        queue.pop();
+        return true;
+    }
+
+    // Check if queue is empty
+    bool empty() const {
+        std::lock_guard<std::mutex> lock(mtx);
+        return queue.empty();
+    }
+
+    // Get current size
+    size_t size() const {
+        std::lock_guard<std::mutex> lock(mtx);
+        return queue.size();
+    }
+
+   private:
+    mutable std::mutex mtx;
+    std::condition_variable cv;
+    std::queue<MC_OutQueueEntry> queue;
+    bool stopFlag = false;
+};
+
 class MeshtasticCompact {
    public:
     MeshtasticCompact();
@@ -164,6 +233,7 @@ class MeshtasticCompact {
 
    private:
     bool RadioListen();
+    bool RadioSendInit();
     // handlers
     void intOnMessage(MC_Header header, MC_TextMessage message);
     void intOnPositionMessage(MC_Header header, MC_Position position);
@@ -178,6 +248,7 @@ class MeshtasticCompact {
     bool pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct);
     size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);
     static void task_listen(void* pvParameters);
+    static void task_send(void* pvParameters);
     bool aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len);
 
     float rssi, snr;
@@ -198,6 +269,9 @@ class MeshtasticCompact {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     mbedtls_aes_context aes_ctx;
+    bool need_run = true;
+
+    MeshCompactOutQueue out_queue;
 
     // Function pointer for onMessage callback
     OnMessageCallback onMessage = nullptr;

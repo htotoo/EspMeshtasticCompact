@@ -2,6 +2,7 @@
 #define MeshtasticCompactStructs_h
 
 #include <stdint.h>
+#include "meshtastic/mesh.pb.h"
 
 typedef enum {
     MC_MESSAGE_TYPE_TEXT = 0,             // Normal text message
@@ -60,6 +61,11 @@ struct MC_Waypoint {
     int32_t longitude_i;    // Longitude in degrees
     uint32_t icon;          // Icon representing the waypoint
     uint32_t expire;        // Expiration time of the waypoint
+};
+
+struct MC_OutQueueEntry {
+    MC_Header header;
+    meshtastic_Data data;
 };
 
 #endif  // MeshtasticCompactStructs_h

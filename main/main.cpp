@@ -1,10 +1,10 @@
-/*  WiFi softAP Example
+/*  Meshtastic Compact Example Code
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
+    *  This example demonstrates how to use the MeshtasticCompact library to receive and process
+       messages, position updates, node information, and waypoints from a Meshtastic device.
+    *  It initializes the radio, sets up callbacks for different message types, and prints the
+       received data to the log.
+    *  The code is designed to run on an ESP32S3.
 */
 
 #include <stdio.h>
