@@ -24,6 +24,9 @@ void IRAM_ATTR onPacketReceived() {
 }
 MeshtasticCompact::MeshtasticCompact() {
     mbedtls_aes_init(&aes_ctx);
+    uint64_t mac;
+    esp_efuse_mac_get_default((uint8_t*)&mac);  // Use the last 4 bytes of the MAC address as the node ID
+    my_id = (uint32_t)(mac & 0xFFFFFFFF);
 }
 
 MeshtasticCompact::~MeshtasticCompact() {
@@ -49,9 +52,6 @@ bool MeshtasticCompact::RadioInit() {
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
-    uint64_t mac;
-    esp_efuse_mac_get_default((uint8_t*)&mac);  // Use the last 4 bytes of the MAC address as the node ID
-    my_id = (uint32_t)(mac & 0xFFFFFFFF);
     RadioListen();  // Start listening for packets
     return true;
 }

@@ -153,6 +153,12 @@ class MeshtasticCompact {
         }
         return false;
     }
+    void overrideMyId(uint32_t id) {
+        my_id = id;
+    }
+    uint32_t getMyId() const {
+        return my_id;
+    }
 
     NodeInfoDB nodeinfo_db;  // NodeInfo database
 
