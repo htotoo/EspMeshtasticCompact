@@ -149,11 +149,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         header.via_mqtt = !!(packet_flags & PACKET_FLAGS_VIA_MQTT_MASK);
         header.hop_start = (packet_flags & PACKET_FLAGS_HOP_START_MASK) >> PACKET_FLAGS_HOP_START_SHIFT;
 
-        ESP_LOGI(TAG, "Received packet from node 0x%08" PRIx32 " to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32 ", Hop Limit: %d, Hop Start: %d, Want Ack: %d, Via MQTT: %d, RSSI: %.2f dBm, SNR: %.2f dB, Chan: %u",
-                 header.srcnode, header.dstnode, header.packet_id, header.hop_limit, header.hop_start,
-                 header.want_ack, header.via_mqtt, header.rssi, header.snr, header.chan_hash);
+        // ESP_LOGI(TAG, "Received packet from node 0x%08" PRIx32 " to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32 ", Hop Limit: %d, Hop Start: %d, Want Ack: %d, Via MQTT: %d, RSSI: %.2f dBm, SNR: %.2f dB, Chan: %u", header.srcnode, header.dstnode, header.packet_id, header.hop_limit, header.hop_start, header.want_ack, header.via_mqtt, header.rssi, header.snr, header.chan_hash);
         meshtastic_Data decodedtmp;
-        int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header.packet_id, header.srcnode);
+        int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
             /*ESP_LOGI(TAG, "Decoded Meshtastic Data:");
             ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
@@ -386,16 +384,21 @@ size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsiz
     }
 }
 
-int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, uint32_t packet_id, uint32_t packet_src) {
+int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MC_Header& header) {
     uint8_t decrypted_data[srcbufsize] = {0};
     memset(dest_struct, 0, dest_struct_size);
     // 1st.
-    if (aes_decrypt_meshtastic_payload(default_l1_key, sizeof(default_l1_key) * 8, packet_id, packet_src, srcbuf, decrypted_data, srcbufsize)) {
+    if (aes_decrypt_meshtastic_payload(default_l1_key, sizeof(default_l1_key) * 8, header.packet_id, header.srcnode, srcbuf, decrypted_data, srcbufsize)) {
         if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return 254;
     }
     memset(dest_struct, 0, dest_struct_size);
-    if (aes_decrypt_meshtastic_payload(default_chan_key, sizeof(default_chan_key) * 8, packet_id, packet_src, srcbuf, decrypted_data, srcbufsize)) {
+    if (aes_decrypt_meshtastic_payload(default_chan_key, sizeof(default_chan_key) * 8, header.packet_id, header.srcnode, srcbuf, decrypted_data, srcbufsize)) {
         if (pb_decode_from_bytes(decrypted_data, srcbufsize, fields, dest_struct)) return 0;
+    }
+
+    if (header.chan_hash == 0 && header.dstnode != 0xffffffff) {
+        // todo pki decrypt
+        return -1;
     }
     // todo iterate chan keys
 
