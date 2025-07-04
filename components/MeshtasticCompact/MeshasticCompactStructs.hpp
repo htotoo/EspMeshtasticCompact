@@ -41,6 +41,7 @@ struct MC_Position {
 };
 
 struct MC_NodeInfo {
+    uint32_t node_id;        // src
     char id[16];             // Node ID
     char short_name[5];      // Short name of the node
     char long_name[40];      // Long name of the node

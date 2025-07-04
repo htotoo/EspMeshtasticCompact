@@ -14,6 +14,102 @@
 
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
 
+class NodeInfoDB {
+   public:
+    static constexpr size_t MAX_NODES = 32;
+
+    // Add or update a node entry
+    void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
+        // Try to update existing
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id) {
+                nodeinfos[i] = info;
+                return;
+            }
+        }
+        // Add new if space
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (!valid[i]) {
+                nodeinfos[i] = info;
+                valid[i] = true;
+                return;
+            }
+        }
+        // No space: do nothing (could implement LRU or overwrite oldest if needed)
+    }
+
+    // Get pointer to nodeinfo by node_id, or nullptr if not found
+    MC_NodeInfo* get(uint32_t node_id) {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id) {
+                return &nodeinfos[i];
+            }
+        }
+        return nullptr;
+    }
+
+    // Delete a node entry by node_id
+    void remove(uint32_t node_id) {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id) {
+                valid[i] = false;
+                nodeinfos[i].node_id = 0;
+                return;
+            }
+        }
+    }
+
+    // Clear all node entries
+    void clearAll() {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            valid[i] = false;
+            nodeinfos[i].node_id = 0;
+            is_position_valid[i] = false;
+        }
+    }
+
+    // Get position for a valid node by node_id, returns true if found and valid
+    bool getPosition(uint32_t node_id, MC_Position& out_position) const {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id && is_position_valid[i]) {
+                out_position = positions[i];
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Set position for a valid node by node_id, returns true if successful
+    bool setPosition(uint32_t node_id, const MC_Position& position) {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id) {
+                positions[i] = position;
+                is_position_valid[i] = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Remove position for a node by node_id
+    void removePosition(uint32_t node_id) {
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i] && nodeinfos[i].node_id == node_id) {
+                is_position_valid[i] = false;
+                // Optionally clear position data:
+                positions[i] = MC_Position{};
+                return;
+            }
+        }
+    }
+
+   private:
+    MC_NodeInfo nodeinfos[MAX_NODES];
+    MC_Position positions[MAX_NODES];  // Optional: if you want to store positions too
+    bool is_position_valid[MAX_NODES] = {};
+    bool valid[MAX_NODES] = {};
+};
+
 class MeshtasticCompact {
    public:
     MeshtasticCompact();
@@ -46,6 +142,8 @@ class MeshtasticCompact {
         }
         return false;
     }
+
+    NodeInfoDB nodeinfo_db;  // NodeInfo database
 
    private:
     bool RadioListen();

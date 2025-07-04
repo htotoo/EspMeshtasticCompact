@@ -46,7 +46,6 @@ bool MeshtasticCompact::RadioInit() {
     state |= radio.setDio2AsRfSwitch(false);
     radio.setDio1Action(onPacketReceived);
     state |= radio.setRxBoostedGainMode(true);
-    state |= radio.startReceive();
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
@@ -61,11 +60,10 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
     MeshtasticCompact* mshcomp = static_cast<MeshtasticCompact*>(pvParameters);
     ESP_LOGI(pcTaskGetName(NULL), "Start");
     uint8_t rxData[256];  // Maximum Payload size of SX1261/62/68 is 255
-    // mshcomp->radio.startReceive();
+    mshcomp->radio.startReceive();
     while (1) {
         if (packetFlag) {
             packetFlag = false;
-            printf("packetFlag!\n");
             int rxLen = mshcomp->radio.getPacketLength();
             if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
             int err = mshcomp->radio.readData(rxData, rxLen);
@@ -76,13 +74,13 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             if (err < 0) {
                 if (err == RADIOLIB_ERR_RX_TIMEOUT) {
                     // timeout occurred while waiting for a packet
-                    printf("timeout!\n");
+                    // printf("timeout!\n");
                 } else if (err == RADIOLIB_ERR_CRC_MISMATCH) {
                     // packet was received, but is malformed
-                    printf("CRC error!\n");
+                    // printf("CRC error!\n");
                 } else {
                     // some other error occurred
-                    printf("failed, code %d", err);
+                    // printf("failed, code %d", err);
                 }
             }
         }
@@ -105,14 +103,14 @@ void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
 }
 
 void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position) {
-    // should save this to contact's data //todo
+    nodeinfo_db.setPosition(header.srcnode, position);
     if (onPositionMessage) {
         onPositionMessage(header, position);
     };
 }
 
 void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo) {
-    // should save this to contact's data //todo
+    nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);
     if (onNodeInfo) {
         onNodeInfo(header, nodeinfo);
     };
@@ -199,6 +197,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 meshtastic_User user_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_User_msg, &user_msg)) {
                     MC_NodeInfo node_info;
+                    node_info.node_id = header.srcnode;  // srcnode is the node ID
                     memcpy(node_info.id, user_msg.id, sizeof(node_info.id));
                     memcpy(node_info.short_name, user_msg.short_name, sizeof(node_info.short_name));
                     memcpy(node_info.long_name, user_msg.long_name, sizeof(node_info.long_name));
@@ -376,7 +375,7 @@ bool MeshtasticCompact::pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbu
 size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct) {
     pb_ostream_t stream = pb_ostream_from_buffer(destbuf, destbufsize);
     if (!pb_encode(&stream, fields, src_struct)) {
-        printf("Panic: can't encode protobuf reason='%s'", PB_GET_ERROR(&stream));
+        // printf("Panic: can't encode protobuf reason='%s'", PB_GET_ERROR(&stream));
         return 0;
     } else {
         return stream.bytes_written;
