@@ -8,7 +8,7 @@
 #include "unishox2.h"
 #include "meshtastic/remote_hardware.pb.h"
 #include "meshtastic/telemetry.pb.h"
-
+#include "esp_mac.h"
 #define TAG "MeshtasticCompact"
 
 #define PACKET_FLAGS_HOP_LIMIT_MASK 0x07
@@ -50,6 +50,9 @@ bool MeshtasticCompact::RadioInit() {
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
+    uint64_t mac;
+    esp_efuse_mac_get_default((uint8_t*)&mac);  // Use the last 4 bytes of the MAC address as the node ID
+    my_id = (uint32_t)(mac & 0xFFFFFFFF);
     RadioListen();  // Start listening for packets
     return true;
 }
@@ -103,7 +106,7 @@ void MeshtasticCompact::intOnMessage(uint8_t chan, std::string message, uint32_t
     };
 }
 
-bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
+int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
     if (len > 0) {
         // https://meshtastic.org/docs/overview/mesh-algo/#layer-1-unreliable-zero-hop-messaging
         if (len < 0x10) {
@@ -300,8 +303,11 @@ bool MeshtasticCompact::ProcessPacket(uint8_t* data, int len) {
             } else {
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
-            return ret;
+            if (packet_want_Ack) {
+                // todo send ack
+            }
         }
+        return ret;
     }
     return false;
 }
