@@ -7,6 +7,14 @@
     *  The code is designed to run on an ESP32S3.
 */
 
+/*
+TODO list:
+ - Traceroute packet handle (req, reply)
+ - Handle all (most) kind of telemetry sending, receiving
+ - Auto ack when needed (when not, then just use a callback?)
+ - Fix all callbacks, to disable needreply when sending is disabled
+*/
+
 #include <stdio.h>
 #include <inttypes.h>
 #include <ctype.h>
