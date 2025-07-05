@@ -152,8 +152,9 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 }
             }
         }
-        mshcomp->radio.startReceive();        // Restart receiving after sending
-        vTaskDelay(20 / portTICK_PERIOD_MS);  // Wait before next send attempt
+        mshcomp->radio.startReceive();
+        // Restart receiving after sending
+        vTaskDelay(300 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
     // never reach here
     vTaskDelete(NULL);
@@ -273,14 +274,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
             ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
-            /*ESP_LOGI(TAG, "Decoded Meshtastic Data:");
-
-            // ESP_LOGI(TAG, "Payload: %s", decodedtmp.payload.bytes);
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
             ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);
             ESP_LOGI(TAG, "Reply ID: %" PRIu32, decodedtmp.reply_id);
-            ESP_LOGI(TAG, "Emoji: %" PRIu32, decodedtmp.emoji);
-            ESP_LOGI(TAG, "Bitfield: 0x%02X", decodedtmp.bitfield);*/
             // Process the decoded data as needed https://github.com/meshtastic/protobufs/blob/master/meshtastic/portnums.proto
             if (decodedtmp.portnum == 0) {
                 ESP_LOGI(TAG, "Received an unknown packet");
@@ -300,21 +296,22 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     ESP_LOGE(TAG, "Failed to decode HardwareMessage");
                 }*/
             } else if (decodedtmp.portnum == 3) {
-                ESP_LOGI(TAG, "Received a position packet");
                 // payload: protobuf Position
                 meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
-                    intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i,
-                                                  .longitude_i = position_msg.longitude_i,
-                                                  .altitude = position_msg.altitude,
-                                                  .ground_speed = position_msg.ground_speed,
-                                                  .sats_in_view = position_msg.sats_in_view,
-                                                  .location_source = (uint8_t)position_msg.location_source});
+                    if (position_msg.has_latitude_i && position_msg.has_longitude_i) {
+                        intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i,
+                                                      .longitude_i = position_msg.longitude_i,
+                                                      .altitude = position_msg.altitude,
+                                                      .ground_speed = position_msg.ground_speed,
+                                                      .sats_in_view = position_msg.sats_in_view,
+                                                      .location_source = (uint8_t)position_msg.location_source});
+                    };
+                    ;
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
             } else if (decodedtmp.portnum == 4) {
-                ESP_LOGI(TAG, "Received a node info packet");
                 // payload: protobuf User
                 meshtastic_User user_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_User_msg, &user_msg)) {
@@ -596,6 +593,40 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
     out_queue.push(entry);
 }
 
+void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = hal->millis();
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack //todo check
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;                         // Use default channel hash
+    entry.header.via_mqtt = 0;                             // Not used in this case
+    entry.encType = 1;                                     // AES encryption //todo create a query for it. now go with aes
+    entry.data.portnum = meshtastic_PortNum_POSITION_APP;  // NodeInfo portnum
+    entry.data.want_response = entry.header.want_ack;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
+    meshtastic_Position position_msg = {};
+
+    position_msg.latitude_i = position.latitude_i;
+    position_msg.longitude_i = position.longitude_i;
+    position_msg.altitude = position.altitude;
+    position_msg.ground_speed = position.ground_speed;
+    position_msg.sats_in_view = position.sats_in_view;
+    position_msg.location_source = (meshtastic_Position_LocSource)position.location_source;
+    position_msg.precision_bits = 17;
+    position_msg.has_altitude = position.altitude != 0;          // Set has_altitude based on altitude value
+    position_msg.has_ground_speed = position.ground_speed != 0;  // Set has_ground_speed based on speed value
+    position_msg.has_latitude_i = true;                          // Set has_latitude_i to true
+    position_msg.has_longitude_i = true;                         // Set has_longitude_i to true
+    position_msg.has_altitude = position.altitude != 0;          // Set has_alt
+    entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Position_msg, &position_msg);
+    out_queue.push(entry);
+}
+
 #pragma endregion
 
 #pragma region Helpers
@@ -628,4 +659,13 @@ void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t n
         nodeinfo.macaddr[i] = (node_id >> (8 * (5 - i))) & 0xFF;
     }
     memset(nodeinfo.public_key, 0, sizeof(nodeinfo.public_key));
+}
+
+void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude, uint32_t speed, uint32_t sats_in_view) {
+    position.latitude_i = static_cast<int32_t>(latitude * 10e6);
+    position.longitude_i = static_cast<int32_t>(longitude * 10e6);
+    position.altitude = altitude;
+    position.ground_speed = speed;
+    position.sats_in_view = sats_in_view;
+    position.location_source = 0;
 }

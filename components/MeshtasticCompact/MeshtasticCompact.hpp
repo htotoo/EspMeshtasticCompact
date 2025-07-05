@@ -240,6 +240,7 @@ class MeshtasticCompact {
         SendNodeInfo(my_nodeinfo, dstnode);
     }
     void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
+    void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, uint32_t sender_node_id = 0);
 
     NodeInfoDB nodeinfo_db;  // NodeInfo database
 
@@ -297,6 +298,7 @@ class MeshtasticCompact {
 class MeshtasticCompactHelpers {
    public:
     static void NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name);
+    static void PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude = 0, uint32_t speed = 0, uint32_t sats_in_view = 0);
 };
 
 #endif  // MESHTASTIC_COMPACT_H
