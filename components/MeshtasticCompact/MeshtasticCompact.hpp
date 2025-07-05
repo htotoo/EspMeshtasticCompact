@@ -271,13 +271,13 @@ class MeshtasticCompact {
     }
 
     // packet senders
-    void SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff);
-    void SendMyNodeInfo(uint32_t dstnode = 0xffffffff) {
-        SendNodeInfo(my_nodeinfo, dstnode);
+    void SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff, bool exchange = false);
+    void SendMyNodeInfo(uint32_t dstnode = 0xffffffff, bool exchange = false) {
+        SendNodeInfo(my_nodeinfo, dstnode, exchange);
     }
     void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
-    void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, uint32_t sender_node_id = 0);
-
+    void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendRequestPositionInfo(uint32_t dest_node_id, uint32_t sender_node_id = 0, uint8_t chan = 8);
     NodeInfoDB nodeinfo_db;  // NodeInfo database
 
    private:
