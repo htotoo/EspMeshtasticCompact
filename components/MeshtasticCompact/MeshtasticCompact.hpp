@@ -22,6 +22,41 @@ class NodeInfoDB {
    public:
     static constexpr size_t MAX_NODES = 32;
 
+    // Iterator for NodeInfoDB
+    class iterator {
+       public:
+        iterator(MC_NodeInfo* nodeinfos, bool* valid, size_t idx)
+            : nodeinfos_(nodeinfos), valid_(valid), idx_(idx) {
+            advance_to_valid();
+        }
+        iterator& operator++() {
+            ++idx_;
+            advance_to_valid();
+            return *this;
+        }
+        MC_NodeInfo& operator*() {
+            assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
+            return nodeinfos_[idx_];
+        }
+        MC_NodeInfo* operator->() {
+            assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
+            return &nodeinfos_[idx_];
+        }
+        bool operator!=(const iterator& other) const { return idx_ != other.idx_; }
+        bool operator==(const iterator& other) const { return idx_ == other.idx_; }
+
+       private:
+        void advance_to_valid() {
+            while (idx_ < MAX_NODES && !valid_[idx_]) ++idx_;
+        }
+        MC_NodeInfo* nodeinfos_;
+        bool* valid_;
+        size_t idx_;
+    };
+
+    iterator begin() { return iterator(nodeinfos, valid, 0); }
+    iterator end() { return iterator(nodeinfos, valid, MAX_NODES); }
+
     // Add or update a node entry
     void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
         // Try to update existing
@@ -36,6 +71,7 @@ class NodeInfoDB {
             if (!valid[i]) {
                 nodeinfos[i] = info;
                 valid[i] = true;
+                is_position_valid[i] = false;
                 return;
             }
         }
