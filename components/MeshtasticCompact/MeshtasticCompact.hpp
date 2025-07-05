@@ -277,7 +277,7 @@ class MeshtasticCompact {
     }
     void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
     void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
-    void SendRequestPositionInfo(uint32_t dest_node_id, uint32_t sender_node_id = 0, uint8_t chan = 8);
+    void SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
     NodeInfoDB nodeinfo_db;  // NodeInfo database
 
    private:

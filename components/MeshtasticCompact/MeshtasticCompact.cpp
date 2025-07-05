@@ -82,23 +82,29 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 ESP_LOGI(TAG, "Send task stopped");
                 continue;
             }
+            // packet id fix:
+            if (entry.header.packet_id == 0) {
+                entry.header.packet_id = mshcomp->hal->millis() + 100000;
+            }
             // Prepare the payload
             uint8_t payload[256];
             size_t payload_len = mshcomp->pb_encode_to_bytes(payload, sizeof(payload), meshtastic_Data_fields, &entry.data);
             // Encrypt the payload if needed
             uint8_t encrypted_payload[256];
             bool aesenc = true;
-            MC_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
-            if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode) {
-                bool all_zero = true;
-                for (size_t i = 0; i < 32; i++) {
-                    if (dstnode->public_key[i] != 0) {
-                        all_zero = false;
-                        break;
+            if (entry.encType == 0) {  // the auto enc method
+                MC_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
+                if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode) {
+                    bool all_zero = true;
+                    for (size_t i = 0; i < 32; i++) {
+                        if (dstnode->public_key[i] != 0) {
+                            all_zero = false;
+                            break;
+                        }
                     }
-                }
-                if (!all_zero) {
-                    aesenc = false;
+                    if (!all_zero) {
+                        aesenc = false;
+                    }
                 }
             }
 
@@ -152,9 +158,10 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                 }
             }
         }
+        vTaskDelay(1 / portTICK_PERIOD_MS);
         mshcomp->radio.startReceive();
         // Restart receiving after sending
-        vTaskDelay(300 / portTICK_PERIOD_MS);  // Wait before next send attempt
+        vTaskDelay(350 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
     // never reach here
     vTaskDelete(NULL);
@@ -536,7 +543,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = nodeinfo.node_id;
-    entry.header.packet_id = hal->millis();
+    entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
     entry.header.want_ack = exchange;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
     entry.header.via_mqtt = false;
@@ -578,7 +585,7 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
-    entry.header.packet_id = hal->millis();
+    entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
     entry.header.want_ack = 1;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
     entry.header.via_mqtt = false;
@@ -595,11 +602,11 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint32_t sender_node_id, uint8_t chan) {
+void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan, uint32_t sender_node_id) {
     MC_OutQueueEntry entry;
     entry.header.dstnode = dest_node_id;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
-    entry.header.packet_id = hal->millis();
+    entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
     entry.header.want_ack = 1;
     entry.header.via_mqtt = false;
@@ -620,7 +627,7 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
-    entry.header.packet_id = hal->millis();
+    entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
     entry.header.want_ack = 0;
     entry.header.via_mqtt = false;

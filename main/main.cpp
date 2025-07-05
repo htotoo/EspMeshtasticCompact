@@ -77,15 +77,11 @@ void app_main(void) {
         ESP_LOGI(TAG, "Icon: %lu, Expire: %lu", waypoint.icon, waypoint.expire);
         PrintHeaderInfo(header);
     });
+    meshtasticCompact.SendMyNodeInfo(0xffffffff, true);
+    vTaskDelay(15000 / portTICK_PERIOD_MS);
     MC_Position position;
     while (1) {
         meshtasticCompact.SendMyNodeInfo();
-        float lon = 17.9f + static_cast<float>(esp_random()) / UINT32_MAX * (18.7f - 17.9f);
-        float lat = 46.1f + static_cast<float>(esp_random()) / UINT32_MAX * (47.7f - 46.1f);
-        MeshtasticCompactHelpers::PositionBuilder(position, lat, lon, 0, 0, 5);
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        // meshtasticCompact.SendPositionMessage(position, 0xffffffff, 8);
-        // meshtasticCompact.SendRequestPositionInfo(nnn);
-        vTaskDelay(55000 / portTICK_PERIOD_MS);  // Wait for 10 seconds before sending the next message
+        vTaskDelay(25000 / portTICK_PERIOD_MS);
     }
 }
