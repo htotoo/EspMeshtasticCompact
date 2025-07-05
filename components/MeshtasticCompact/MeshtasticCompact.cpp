@@ -76,13 +76,14 @@ void MeshtasticCompact::task_send(void* pvParameters) {
     MeshtasticCompact* mshcomp = static_cast<MeshtasticCompact*>(pvParameters);
     ESP_LOGI(pcTaskGetName(NULL), "Start");
     while (mshcomp->need_run) {
+        MC_OutQueueEntry entry = mshcomp->out_queue.pop();
+
+        if (entry.header.srcnode == 0) {
+            // Stop flag was set, exit the task
+            ESP_LOGI(TAG, "Send task stopped");
+            continue;
+        }
         if (mshcomp->is_send_enabled) {
-            MC_OutQueueEntry entry = mshcomp->out_queue.pop();
-            if (entry.header.srcnode == 0) {
-                // Stop flag was set, exit the task
-                ESP_LOGI(TAG, "Send task stopped");
-                continue;
-            }
             // packet id fix:
             if (entry.header.packet_id == 0) {
                 entry.header.packet_id = mshcomp->hal->millis() + 100000;
@@ -230,19 +231,29 @@ void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
     };
 }
 
-void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position) {
-    if (header.want_ack == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
+void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position, bool want_reply) {
+    if (want_reply == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
+    bool needReply = (want_reply == true && !is_auto_full_node);
     if (onPositionMessage) {
-        onPositionMessage(header, position);
+        onPositionMessage(header, position, needReply);
     };
+    if (want_reply && is_auto_full_node) {
+        ESP_LOGI(TAG, "AUTO Sending my pos info to node 0x%08" PRIx32, header.srcnode);
+        SendMyPosition(header.srcnode);
+    }
 }
 
-void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo) {
+void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo, bool want_reply) {
     nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);  // if want ack, then exchange happened, but we got info too
     nodeinfo.last_updated = hal->millis();
+    bool needReply = (want_reply == true && !is_auto_full_node);
     if (onNodeInfo) {
-        onNodeInfo(header, nodeinfo);
+        onNodeInfo(header, nodeinfo, needReply);
     };
+    if (want_reply && is_auto_full_node) {
+        ESP_LOGI(TAG, "AUTO Sending my node info to node 0x%08" PRIx32, header.srcnode);
+        SendMyNodeInfo(header.srcnode);
+    }
 }
 void MeshtasticCompact::intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint) {
     // should save this to waypoint database //todo
@@ -312,12 +323,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
                     if (position_msg.has_latitude_i && position_msg.has_longitude_i) {
-                        intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i,
-                                                      .longitude_i = position_msg.longitude_i,
-                                                      .altitude = position_msg.altitude,
-                                                      .ground_speed = position_msg.ground_speed,
-                                                      .sats_in_view = position_msg.sats_in_view,
-                                                      .location_source = (uint8_t)position_msg.location_source});
+                        intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source}, decodedtmp.want_response);
                     };
                     ;
                 } else {
@@ -336,7 +342,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     memcpy(node_info.public_key, user_msg.public_key.bytes, sizeof(node_info.public_key));
                     node_info.role = user_msg.role;
                     node_info.hw_model = user_msg.hw_model;
-                    intOnNodeInfo(header, node_info);
+                    intOnNodeInfo(header, node_info, decodedtmp.want_response);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");
                 }
@@ -362,7 +368,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 8) {
                 ESP_LOGI(TAG, "Received a waypoint packet");
                 // payload: protobuf Waypoint
-                meshtastic_Waypoint waypoint_msg = {};  // todo store and callback
+                meshtastic_Waypoint waypoint_msg = {};  // todo store and callbacke
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Waypoint_msg, &waypoint_msg)) {
                     MC_Waypoint waypoint;
                     waypoint.latitude_i = waypoint_msg.latitude_i;

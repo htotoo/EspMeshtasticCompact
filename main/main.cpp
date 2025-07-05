@@ -41,21 +41,25 @@ void PrintHeaderInfo(MC_Header& header) {
 }
 
 void app_main(void) {
+    MeshtasticCompactHelpers::PositionBuilder(meshtasticCompact.my_position, 47.123456f, 8.123456f, 500, 0, 5);
     meshtasticCompact.RadioInit();
     meshtasticCompact.setOnMessage([](MC_Header header, MC_TextMessage& message) {
         ESP_LOGI(TAG, "Received message on channel %d: %s", message.chan, message.text.c_str());
         ESP_LOGI(TAG, "Msg type %d", message.type);
         PrintHeaderInfo(header);
     });
-    meshtasticCompact.setOnPositionMessage([](MC_Header header, MC_Position& position) {
+    meshtasticCompact.setOnPositionMessage([](MC_Header header, MC_Position& position, bool needReply) {
         ESP_LOGI(TAG, "Received position update:");
         ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld, Altitude: %ld", position.latitude_i, position.longitude_i, position.altitude);
         ESP_LOGI(TAG, "Ground Speed: %lu", position.ground_speed);
         ESP_LOGI(TAG, "Satellites in view: %lu", position.sats_in_view);
         ESP_LOGI(TAG, "Location Source: %u", position.location_source);
         PrintHeaderInfo(header);
+        if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
+            meshtasticCompact.SendMyPosition();  // Reply to the sender
+        }
     });
-    meshtasticCompact.setOnNodeInfoMessage([](MC_Header header, MC_NodeInfo& nodeinfo) {
+    meshtasticCompact.setOnNodeInfoMessage([](MC_Header header, MC_NodeInfo& nodeinfo, bool needReply) {
         ESP_LOGI(TAG, "Received node info:");
         ESP_LOGI(TAG, "Node ID: %s", nodeinfo.id);
         ESP_LOGI(TAG, "Short Name: %s", nodeinfo.short_name);
@@ -67,6 +71,10 @@ void app_main(void) {
         // ESP_LOGI(TAG, "Public Key: %s", nodeinfo.public_key);
         ESP_LOGI(TAG, "Role: %u", nodeinfo.role);
         PrintHeaderInfo(header);
+
+        if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
+            meshtasticCompact.SendMyNodeInfo(header.srcnode);  // Reply to the sender
+        }
     });
     meshtasticCompact.setOnWaypointMessage([](MC_Header header, MC_Waypoint& waypoint) {
         ESP_LOGI(TAG, "Received waypoint:");

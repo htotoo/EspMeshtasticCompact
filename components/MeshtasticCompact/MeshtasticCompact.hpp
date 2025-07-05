@@ -286,8 +286,8 @@ class MeshtasticCompact {
 
     // callbacks
     using OnMessageCallback = void (*)(MC_Header header, MC_TextMessage& message);
-    using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position& position);
-    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo& nodeinfo);
+    using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position& position, bool needReply);
+    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo& nodeinfo, bool needReply);
     using OnWaypointMessageCallback = void (*)(MC_Header header, MC_Waypoint& waypoint);
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
@@ -303,6 +303,7 @@ class MeshtasticCompact {
     void setSendEnabled(bool enabled) {
         is_send_enabled = enabled;
     }
+    void setAutoFullNode(bool enabled) { is_auto_full_node = enabled; }  // if true, sends ack, traceroute reply, and position reply automatically
     bool setSendHopLimit(uint8_t limit) {
         if (limit > 0 && limit <= 7) {
             send_hop_limit = limit;
@@ -323,16 +324,20 @@ class MeshtasticCompact {
     }
     void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
     void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendMyPosition(uint32_t dstnode = 0xffffffff, uint8_t chan = 8) {
+        SendPositionMessage(my_position, dstnode, chan);
+    }
     void SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
     NodeInfoDB nodeinfo_db;          // NodeInfo database
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
+    MC_Position my_position;         // My position, used for replies
    private:
     bool RadioListen();
     bool RadioSendInit();
     // handlers
     void intOnMessage(MC_Header header, MC_TextMessage message);
-    void intOnPositionMessage(MC_Header header, MC_Position position);
-    void intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo);
+    void intOnPositionMessage(MC_Header header, MC_Position position, bool want_reply);
+    void intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo, bool want_reply);
     void intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint);
     // mesh network minimum functionality
     bool send_ack();
@@ -349,6 +354,7 @@ class MeshtasticCompact {
     float rssi, snr;
     bool is_send_enabled = true;
     uint8_t send_hop_limit = 7;  // default hop limit for sending packets
+    bool is_auto_full_node = true;
 
     MC_NodeInfo my_nodeinfo;  // My node info
 
