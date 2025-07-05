@@ -15,7 +15,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <queue>
-
+#include <deque>
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
 
 class NodeInfoDB {
@@ -125,18 +125,24 @@ class NodeInfoDB {
     bool valid[MAX_NODES] = {};
 };
 
-// Thread-safe queue for MC_OutQueueEntry with signaling and max size 10
 class MeshCompactOutQueue {
    public:
-    static constexpr size_t MAX_ENTRIES = 10;
+    static constexpr size_t MAX_ENTRIES = 15;
 
     // Add entry to queue, returns true if successful, false if full
-    bool push(const MC_OutQueueEntry& entry) {
+    bool push(const MC_OutQueueEntry& entry, bool priority = false) {
         std::unique_lock<std::mutex> lock(mtx);
-        if (queue.size() >= MAX_ENTRIES) {
+        if (queue.size() >= MAX_ENTRIES && !priority) {
             return false;
         }
-        queue.push(entry);
+        if (!priority) {
+            queue.push_back(entry);
+        } else {
+            queue.push_front(entry);
+            while (queue.size() > MAX_ENTRIES) {
+                queue.pop_back();
+            }
+        }
         cv.notify_one();
         return true;
     }
@@ -152,7 +158,7 @@ class MeshCompactOutQueue {
             return entry;
         }
         entry = queue.front();
-        queue.pop();
+        queue.pop_front();
         return entry;
     }
 
@@ -167,7 +173,7 @@ class MeshCompactOutQueue {
         std::unique_lock<std::mutex> lock(mtx);
         if (queue.empty()) return false;
         entry = queue.front();
-        queue.pop();
+        queue.pop_front();
         return true;
     }
 
@@ -186,7 +192,7 @@ class MeshCompactOutQueue {
    private:
     mutable std::mutex mtx;
     std::condition_variable cv;
-    std::queue<MC_OutQueueEntry> queue;
+    std::deque<MC_OutQueueEntry> queue;
     bool stopFlag = false;
 };
 
@@ -286,6 +292,11 @@ class MeshtasticCompact {
     OnPositionMessageCallback onPositionMessage = nullptr;
     OnNodeInfoCallback onNodeInfo = nullptr;
     OnWaypointMessageCallback onWaypointMessage = nullptr;
+};
+
+class MeshtasticCompactHelpers {
+   public:
+    static void NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name);
 };
 
 #endif  // MESHTASTIC_COMPACT_H

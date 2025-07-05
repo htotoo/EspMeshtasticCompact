@@ -19,7 +19,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-
+#include "esp_random.h"
 #include "MeshtasticCompact.hpp"
 
 static const char* TAG = "MeshCompExample";
@@ -79,7 +79,7 @@ void app_main(void) {
     });
 
     while (1) {
-        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        vTaskDelay(60000 / portTICK_PERIOD_MS);
         meshtasticCompact.SendMyNodeInfo();
     }
 }
