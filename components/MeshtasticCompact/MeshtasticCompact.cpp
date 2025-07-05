@@ -284,7 +284,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
-            ESP_LOGI(TAG, "PortNum: %d  PacketId: %lu", decodedtmp.portnum, header.packet_id);
+            ESP_LOGI(TAG, "PortNum: %d  PacketId: %lu  Src: %lu", decodedtmp.portnum, header.packet_id, header.srcnode);
             ESP_LOGI(TAG, "Want ack: %d", header.want_ack ? 1 : 0);
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
             ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);

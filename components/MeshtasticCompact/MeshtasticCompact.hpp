@@ -255,12 +255,13 @@ class MeshtasticCompactRouter {
         std::lock_guard<std::mutex> lock(mtx);
         // Check for existence
         for (size_t i = 0; i < count; ++i) {
-            size_t idx = (head + i) % MAX_ENTRIES;
+            size_t idx = (head - 1 - i + MAX_ENTRIES) % MAX_ENTRIES;
             if (entries[idx].src == src && entries[idx].msgid == msgid) {
                 ESP_LOGI("Router", "Ignoring message duplicated: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
                 return false;
             }
         }
+
         // Insert new entry at head (LRU: overwrite oldest if full)
         entries[head] = {src, msgid};
         head = (head + 1) % MAX_ENTRIES;
