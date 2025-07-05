@@ -37,6 +37,7 @@ MeshtasticCompact::MeshtasticCompact() {
     my_nodeinfo.macaddr[5] = (uint8_t)(mac & 0xFF);
     sprintf(my_nodeinfo.short_name, "MCP");
     snprintf(my_nodeinfo.long_name, sizeof(my_nodeinfo.long_name) - 1, "MeshtasticCompact-%02" PRIx32, my_nodeinfo.node_id);
+    router.setMyId(my_nodeinfo.node_id);
 }
 
 MeshtasticCompact::~MeshtasticCompact() {
@@ -265,6 +266,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         memcpy(&header.srcnode, &data[4], sizeof(uint32_t));
         memcpy(&header.packet_id, &data[8], sizeof(uint32_t));
 
+        if (!mshcomp->router.onCheck(header.srcnode, header.packet_id)) {
+            return false;
+        }
         uint8_t packet_flags = data[12];
         header.chan_hash = data[13];
         // uint8_t packet_next_hop = data[14];
@@ -280,7 +284,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
-            ESP_LOGI(TAG, "PortNum: %d", decodedtmp.portnum);
+            ESP_LOGI(TAG, "PortNum: %d  PacketId: %lu", decodedtmp.portnum, header.packet_id);
             ESP_LOGI(TAG, "Want ack: %d", header.want_ack ? 1 : 0);
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
             ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);
