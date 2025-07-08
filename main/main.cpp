@@ -11,7 +11,6 @@
 TODO list:
  - Traceroute packet handle (req, reply)
  - Test telemetry rx / tx
- - Fix all callbacks, to disable needreply when sending is disabled
  - Add has_data tags to structs
 */
 

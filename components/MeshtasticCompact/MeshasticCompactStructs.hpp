@@ -24,6 +24,8 @@ struct MC_Header {
     bool via_mqtt;  // true if the packet is sent via MQTT
     float rssi;
     float snr;
+    uint32_t request_id;
+    uint32_t reply_id;
 };
 
 struct MC_TextMessage {

@@ -313,6 +313,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
             ESP_LOGI(TAG, "Request ID: %" PRIu32, decodedtmp.request_id);
             ESP_LOGI(TAG, "Reply ID: %" PRIu32, decodedtmp.reply_id);
+            header.request_id = decodedtmp.request_id;
+            header.reply_id = decodedtmp.reply_id;
             // Process the decoded data as needed https://github.com/meshtastic/protobufs/blob/master/meshtastic/portnums.proto
             if (decodedtmp.portnum == 0) {
                 ESP_LOGI(TAG, "Received an unknown packet");
@@ -498,7 +500,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
             if (header.want_ack && is_send_enabled) {
-                // todo send ack
+                send_ack(header);
             }
         }
         return ret;
@@ -583,6 +585,29 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
 #pragma endregion
 
 #pragma region PacketBuilders
+
+void MeshtasticCompact::send_ack(MC_Header& header) {
+    if (!is_send_enabled) return;
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = header.srcnode;  // Send ACK to the source node
+    entry.header.srcnode = my_nodeinfo.node_id;
+    entry.header.packet_id = header.packet_id;  // Use the same packet ID for ACK
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = 0;  // No need for an ACK for ACKs
+    entry.header.via_mqtt = false;
+    entry.data.request_id = header.request_id;            // Use the same request ID
+    entry.header.chan_hash = header.chan_hash;            // Use the same channel hash
+    entry.encType = 1;                                    // AES encryption
+    entry.data.portnum = meshtastic_PortNum_ROUTING_APP;  // ACK portnum
+    entry.data.want_response = 0;                         // No response needed for ACKs
+    entry.key = (uint8_t*)default_l1_key;                 // Use default channel key for encryption
+    entry.key_len = sizeof(default_l1_key);               // Use default channel key length
+    meshtastic_Routing c = meshtastic_Routing_init_default;
+    c.error_reason = meshtastic_Routing_Error_NONE;  // No error reason for ACK
+    c.which_variant = meshtastic_Routing_error_reason_tag;
+    entry.data.payload.size = pb_encode_to_bytes(entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Routing_msg, &c);
+    out_queue.push(entry);
+}
 
 void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bool exchange) {
     if (!is_send_enabled) return;

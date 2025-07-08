@@ -350,7 +350,7 @@ class MeshtasticCompact {
     void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);
     void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);
     // mesh network minimum functionality
-    bool send_ack();
+    void send_ack(MC_Header& header);
 
     // decoding
     int16_t ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp);
