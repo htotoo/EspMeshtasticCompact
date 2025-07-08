@@ -543,7 +543,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else {
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
-            if (header.want_ack && is_send_enabled && !is_in_stealth_mode) {
+            if (header.want_ack && is_send_enabled && !is_in_stealth_mode && header.dstnode == my_nodeinfo.node_id) {
                 send_ack(header);
             }
         }
