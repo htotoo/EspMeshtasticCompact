@@ -139,7 +139,7 @@ void app_main(void) {
     meshtasticCompact.SendMyNodeInfo(0xffffffff, true);
     vTaskDelay(15000 / portTICK_PERIOD_MS);
     while (1) {
-        // meshtasticCompact.SendMyNodeInfo();
+        meshtasticCompact.SendMyNodeInfo();
         vTaskDelay(25000 / portTICK_PERIOD_MS);
     }
 }

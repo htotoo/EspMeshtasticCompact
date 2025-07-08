@@ -289,7 +289,7 @@ class MeshtasticCompactRouter {
     // Returns true if (src, msgid) was not present and is now inserted, false if already present
     bool onCheck(uint32_t src, uint32_t msgid) {
         if (exclude_self && src == my_id) {
-            ESP_LOGI("Router", "Ignoring message from self: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
+            // ESP_LOGI("Router", "Ignoring message from self: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
             return false;  // Ignore messages from self
         }
         std::lock_guard<std::mutex> lock(mtx);
@@ -297,7 +297,7 @@ class MeshtasticCompactRouter {
         for (size_t i = 0; i < count; ++i) {
             size_t idx = (head - 1 - i + MAX_ENTRIES) % MAX_ENTRIES;
             if (entries[idx].src == src && entries[idx].msgid == msgid) {
-                ESP_LOGI("Router", "Ignoring message duplicated: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
+                // ESP_LOGI("Router", "Ignoring message duplicated: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
                 return false;
             }
         }
@@ -410,6 +410,7 @@ class MeshtasticCompact {
     void SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
     void SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
     void SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTracerouteReply(MC_Header& header, MC_RouteDiscovery& route_discovery);
 
     NodeInfoDB nodeinfo_db;          // NodeInfo database.
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option

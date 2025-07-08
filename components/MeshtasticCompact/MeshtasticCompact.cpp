@@ -144,7 +144,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             // Send the packet
             {
                 std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
-                ESP_LOGW(TAG, "Try send packet");
+                ESP_LOGE(TAG, "Try send packet");
                 int err = mshcomp->radio.transmit(payload, total_len);
                 if (err == RADIOLIB_ERR_NONE) {
                     ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
@@ -182,7 +182,7 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             int rxLen = 0;
             {
                 std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
-                ESP_LOGW(TAG, "Packet received, trying to read data");
+                // ESP_LOGW(TAG, "Packet received, trying to read data");
                 rxLen = mshcomp->radio.getPacketLength();
                 if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
                 err = mshcomp->radio.readData(rxData, rxLen);
@@ -277,7 +277,7 @@ void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, MC_Telemetr
 void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery) {
     // check is it for us
     if (header.dstnode == my_nodeinfo.node_id) {
-        if (header.request_id != 0) {
+        if (header.request_id == 0) {
             // we got a query
             // may add a callback here
             if (onTraceroute) {
@@ -285,11 +285,30 @@ void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& ro
             }
             if (!is_in_stealth_mode && is_auto_full_node && is_send_enabled) {
                 // send reply
-                ESP_LOGI(TAG, "AUTO Sending traceroute reply to node 0x%08" PRIx32, header.srcnode);
-                // todo
+                ESP_LOGE(TAG, "AUTO Sending traceroute reply to node 0x%08" PRIx32, header.srcnode);
+                uint32_t tmp = header.srcnode;
+                header.srcnode = my_nodeinfo.node_id;  // swap src and dst
+                header.dstnode = tmp;
+                header.hop_limit = header.hop_start;
+                header.hop_start = send_hop_limit;
+                header.request_id = header.packet_id;
+                header.reply_id = header.packet_id;
+                header.packet_id = 0;  // reset packet id for reply
+                // add myself to the route
+                if (route_discovery.snr_towards_count + 1 < 8) {
+                    route_discovery.snr_towards_count++;
+                    route_discovery.snr_towards[route_discovery.snr_towards_count - 1] = header.snr;
+                }
+                // send the reply
+                SendTracerouteReply(header, route_discovery);
             }
         } else {
             // we got a reply
+            // add our last snr to the end of the list
+            if (route_discovery.snr_back_count + 1 < 8) {
+                route_discovery.snr_back_count++;
+                route_discovery.snr_back[route_discovery.snr_back_count - 1] = header.snr;
+            }
             // add a callback
             if (onTraceroute) {
                 onTraceroute(header, route_discovery, true, true, false);
@@ -299,12 +318,31 @@ void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& ro
     }
     // simply call callback
     if (onTraceroute) {
-        onTraceroute(header, route_discovery, false, header.request_id != 0, (!(!is_in_stealth_mode && is_auto_full_node)) && is_send_enabled);
+        onTraceroute(header, route_discovery, false, header.request_id == 0, (!(!is_in_stealth_mode && is_auto_full_node)) && is_send_enabled);
     }
 
     if (!is_in_stealth_mode && is_auto_full_node && is_send_enabled) {
-        // todo flood my reply if needed
-        ESP_LOGI(TAG, "AUTO Flooding traceroute reply to node 0x%08" PRIx32, header.srcnode);
+        if (header.hop_limit > 0) {
+            ESP_LOGI(TAG, "AUTO Flooding traceroute reply to node 0x%08" PRIx32, header.srcnode);
+            // add myself to it
+            if (header.request_id == 0) {
+                if (route_discovery.route_count + 1 < 8) {
+                    route_discovery.route_count++;
+                    route_discovery.route[route_discovery.route_count - 1] = my_nodeinfo.node_id;
+                    route_discovery.snr_towards_count++;
+                    route_discovery.snr_towards[route_discovery.snr_towards_count - 1] = header.snr;
+                }
+            } else {
+                if (route_discovery.route_back_count + 1 < 8) {
+                    route_discovery.route_back_count++;
+                    route_discovery.route_back[route_discovery.route_back_count - 1] = my_nodeinfo.node_id;
+                    route_discovery.snr_back_count++;
+                    route_discovery.snr_back[route_discovery.snr_back_count - 1] = header.snr;
+                }
+            }
+            header.hop_limit--;  // Decrease hop limit
+            SendTracerouteReply(header, route_discovery);
+        }
     }
 }
 
@@ -478,7 +516,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: Protobuf
                 meshtastic_Telemetry telemetry_msg = {};  // todo store and callback
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Telemetry_msg, &telemetry_msg)) {
-                    ESP_LOGI(TAG, "Telemetry Time: %lu", telemetry_msg.time);
+                    // ESP_LOGI(TAG, "Telemetry Time: %lu", telemetry_msg.time);
                     switch (telemetry_msg.which_variant) {
                         case meshtastic_Telemetry_device_metrics_tag:
                             MC_Telemetry_Device device_metrics;
@@ -544,7 +582,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
             if (header.want_ack && is_send_enabled && !is_in_stealth_mode && header.dstnode == my_nodeinfo.node_id) {
-                send_ack(header);
+                // send_ack(header);
             }
         }
         return ret;
@@ -654,6 +692,38 @@ void MeshtasticCompact::send_ack(MC_Header& header) {
     out_queue.push(entry);
 }
 
+void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery& route_discovery) {
+    if (!is_send_enabled) return;
+    if (is_in_stealth_mode) return;
+
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = header.dstnode;
+    entry.header.srcnode = header.srcnode;
+    entry.header.packet_id = header.packet_id;
+    entry.header.hop_limit = header.hop_limit;  // Use the same hop limit
+    entry.header.want_ack = 1;
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = header.hop_start;
+    entry.header.chan_hash = header.chan_hash;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
+    entry.data.want_response = header.request_id == 0;  // we want response, when this is the first message.
+    meshtastic_RouteDiscovery meshtastic_route_discovery = meshtastic_RouteDiscovery_init_default;
+    meshtastic_route_discovery.route_count = route_discovery.route_count;
+    meshtastic_route_discovery.snr_towards_count = route_discovery.snr_towards_count;
+    meshtastic_route_discovery.route_back_count = route_discovery.route_back_count;
+    meshtastic_route_discovery.snr_back_count = route_discovery.snr_back_count;
+    memcpy(meshtastic_route_discovery.route, route_discovery.route, sizeof(meshtastic_route_discovery.route));
+    memcpy(meshtastic_route_discovery.snr_towards, route_discovery.snr_towards, sizeof(meshtastic_route_discovery.snr_towards));
+    memcpy(meshtastic_route_discovery.route_back, route_discovery.route_back, sizeof(meshtastic_route_discovery.route_back));
+    memcpy(meshtastic_route_discovery.snr_back, route_discovery.snr_back, sizeof(meshtastic_route_discovery.snr_back));
+    entry.data.payload.size = pb_encode_to_bytes(entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_RouteDiscovery_msg, &meshtastic_route_discovery);
+    entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
+    entry.key_len = sizeof(default_l1_key);  // Use default channel key length
+    out_queue.push(entry);
+}
+
 void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bool exchange) {
     if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
@@ -661,7 +731,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     entry.header.srcnode = nodeinfo.node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = exchange;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.want_ack = exchange;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
     entry.header.chan_hash = 8;  // Use default channel hash
@@ -674,7 +744,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     memcpy(user_msg.long_name, nodeinfo.long_name, sizeof(user_msg.long_name));
     memcpy(user_msg.macaddr, nodeinfo.macaddr, sizeof(user_msg.macaddr));
     memcpy(user_msg.public_key.bytes, nodeinfo.public_key, sizeof(user_msg.public_key.bytes));
-    user_msg.public_key.size = 32;  // Public key size is 32 bytes
+    user_msg.public_key.size = 0;  // Public key size is 32 bytes
     bool all_zero = true;
     for (size_t i = 0; i < sizeof(user_msg.public_key.bytes); i++) {
         if (user_msg.public_key.bytes[i] != 0) {
