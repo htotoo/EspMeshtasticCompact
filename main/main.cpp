@@ -108,6 +108,28 @@ void app_main(void) {
         ESP_LOGI(TAG, "Lux: %.2f", telemetry.lux);
         PrintHeaderInfo(header);
     });
+    meshtasticCompact.setOnTraceroute([](MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply) {
+        ESP_LOGI(TAG, "Received traceroute packet:");
+        ESP_LOGI(TAG, "Hop Limit: %d, Hop Start: %d", header.hop_limit, header.hop_start);
+        ESP_LOGI(TAG, "Route Count: %zu", route.route_count);
+        for (int i = 0; i < route.route_count; ++i) {
+            ESP_LOGI(TAG, "Hop %d: Node ID: 0x%08" PRIx32, i + 1, route.route[i]);
+        }
+        ESP_LOGI(TAG, "Route BACK Count: %zu", route.route_back_count);
+        for (int i = 0; i < route.route_back_count; ++i) {
+            ESP_LOGI(TAG, "Hop %d: Node ID: 0x%08" PRIx32, i + 1, route.route_back[i]);
+        }
+        ESP_LOGI(TAG, "SNR Towards Count: %zu", route.snr_towards_count);
+        for (int i = 0; i < route.snr_towards_count; ++i) {
+            ESP_LOGI(TAG, "SNR Towards Hop %d: %d dB", i + 1, route.snr_towards[i]);
+        }
+        ESP_LOGI(TAG, "SNR Back Count: %zu", route.snr_back_count);
+        for (int i = 0; i < route.snr_back_count; ++i) {
+            ESP_LOGI(TAG, "SNR Back Hop %d: %d dB", i + 1, route.snr_back[i]);
+        }
+        ESP_LOGI(TAG, "For Me: %s, Is Reply: %s, Need Reply: %s", for_me ? "true" : "false", is_reply ? "true" : "false", need_reply ? "true" : "false");
+        PrintHeaderInfo(header);
+    });
 
     meshtasticCompact.SendMyNodeInfo(0xffffffff, true);
     vTaskDelay(15000 / portTICK_PERIOD_MS);

@@ -86,4 +86,20 @@ struct MC_Telemetry_Environment {
     float pressure;
     float lux;
 };
+
+struct MC_RouteDiscovery {
+    /* The list of nodenums this packet has visited so far to the destination. */
+    pb_size_t route_count;
+    uint32_t route[8];
+    /* The list of SNRs (in dB, scaled by 4) in the route towards the destination. */
+    pb_size_t snr_towards_count;
+    int8_t snr_towards[8];
+    /* The list of nodenums the packet has visited on the way back from the destination. */
+    pb_size_t route_back_count;
+    uint32_t route_back[8];
+    /* The list of SNRs (in dB, scaled by 4) in the route back from the destination. */
+    pb_size_t snr_back_count;
+    int8_t snr_back[8];
+};
+
 #endif  // MeshtasticCompactStructs_h

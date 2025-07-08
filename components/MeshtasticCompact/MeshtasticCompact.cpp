@@ -269,10 +269,42 @@ void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Dev
 }
 
 void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry) {
-    // we won't cache, it is the upper layer's thing.
     if (onTelemetryEnvironment) {
         onTelemetryEnvironment(header, telemetry);
     };
+}
+
+void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery) {
+    // check is it for us
+    if (header.dstnode == my_nodeinfo.node_id) {
+        if (header.request_id != 0) {
+            // we got a query
+            // may add a callback here
+            if (onTraceroute) {
+                onTraceroute(header, route_discovery, true, false, (!(!is_in_stealth_mode && is_auto_full_node)) && is_send_enabled);
+            }
+            if (!is_in_stealth_mode && is_auto_full_node && is_send_enabled) {
+                // send reply
+                ESP_LOGI(TAG, "AUTO Sending traceroute reply to node 0x%08" PRIx32, header.srcnode);
+                // todo
+            }
+        } else {
+            // we got a reply
+            // add a callback
+            if (onTraceroute) {
+                onTraceroute(header, route_discovery, true, true, false);
+            }
+        }
+        return;
+    }
+    // simply call callback
+    if (onTraceroute) {
+        onTraceroute(header, route_discovery, false, header.request_id != 0, (!(!is_in_stealth_mode && is_auto_full_node)) && is_send_enabled);
+    }
+
+    if (!is_in_stealth_mode && is_auto_full_node && is_send_enabled) {
+        // todo flood my reply if needed
+    }
 }
 
 int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp) {
@@ -490,6 +522,17 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 meshtastic_RouteDiscovery route_discovery_msg = {};  // drop
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_RouteDiscovery_msg, &route_discovery_msg)) {
                     ESP_LOGI(TAG, "Route Discovery: Hop Count: %d", route_discovery_msg.route_count);
+                    // header.request_id ==0 --route back
+                    MC_RouteDiscovery route_discovery;
+                    route_discovery.route_count = route_discovery_msg.route_count;
+                    route_discovery.snr_towards_count = route_discovery_msg.snr_towards_count;
+                    route_discovery.route_back_count = route_discovery_msg.route_back_count;
+                    route_discovery.snr_back_count = route_discovery_msg.snr_back_count;
+                    memcpy(route_discovery.route, route_discovery_msg.route, sizeof(route_discovery.route));
+                    memcpy(route_discovery.snr_towards, route_discovery_msg.snr_towards, sizeof(route_discovery.snr_towards));
+                    memcpy(route_discovery.route_back, route_discovery_msg.route_back, sizeof(route_discovery.route_back));
+                    memcpy(route_discovery.snr_back, route_discovery_msg.snr_back, sizeof(route_discovery.snr_back));
+                    intOnTraceroute(header, route_discovery);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode RouteDiscovery");
                 }
@@ -499,7 +542,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else {
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
-            if (header.want_ack && is_send_enabled) {
+            if (header.want_ack && is_send_enabled && !is_in_stealth_mode) {
                 send_ack(header);
             }
         }
@@ -588,6 +631,7 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
 
 void MeshtasticCompact::send_ack(MC_Header& header) {
     if (!is_send_enabled) return;
+    if (is_in_stealth_mode) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = header.srcnode;  // Send ACK to the source node
     entry.header.srcnode = my_nodeinfo.node_id;

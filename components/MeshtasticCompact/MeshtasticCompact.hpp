@@ -291,12 +291,14 @@ class MeshtasticCompact {
     using OnWaypointMessageCallback = void (*)(MC_Header& header, MC_Waypoint& waypoint);
     using OnTelemetryDeviceCallback = void (*)(MC_Header& header, MC_Telemetry_Device& telemetry);
     using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
+    using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
     void setOnMessage(OnMessageCallback cb) { onMessage = cb; }
     void setOnTelemetryDevice(OnTelemetryDeviceCallback cb) { onTelemetryDevice = cb; }
     void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
+    void setOnTraceroute(OnTracerouteCallback cb) { onTraceroute = cb; }
 
     //
     void getLastSignalData(float& rssi_out, float& snr_out) {
@@ -314,6 +316,9 @@ class MeshtasticCompact {
             return true;
         }
         return false;
+    }
+    void setStealthMode(bool stealth) {
+        is_in_stealth_mode = stealth;
     }
 
     void setMyNames(const char* short_name, const char* long_name);
@@ -349,6 +354,7 @@ class MeshtasticCompact {
     void intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint);
     void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);
     void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);
+    void intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery);
     // mesh network minimum functionality
     void send_ack(MC_Header& header);
 
@@ -365,6 +371,7 @@ class MeshtasticCompact {
     bool is_send_enabled = true;
     uint8_t send_hop_limit = 7;  // default hop limit for sending packets
     bool is_auto_full_node = true;
+    bool is_in_stealth_mode = false;  // if set to true, we don't respond to traceroute even in auto full node mode! harder to find us. we even don't send ack
 
     MC_NodeInfo my_nodeinfo;  // My node info
 
@@ -393,6 +400,7 @@ class MeshtasticCompact {
     OnWaypointMessageCallback onWaypointMessage = nullptr;
     OnTelemetryDeviceCallback onTelemetryDevice = nullptr;
     OnTelemetryEnvironmentCallback onTelemetryEnvironment = nullptr;
+    OnTracerouteCallback onTraceroute = nullptr;
 };
 
 class MeshtasticCompactHelpers {
