@@ -702,6 +702,97 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     out_queue.push(entry);
 }
 
+void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = 0;
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;                         // Use default channel hash
+    entry.header.via_mqtt = 0;                             // Not used in this case
+    entry.encType = 1;                                     // AES encryption //todo create a query for it. now go with aes
+    entry.data.portnum = meshtastic_PortNum_WAYPOINT_APP;  // NodeInfo portnum
+    entry.data.want_response = entry.header.want_ack;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
+    meshtastic_Waypoint waypoint_msg = {};
+
+    waypoint_msg.latitude_i = waypoint.latitude_i;
+    waypoint_msg.longitude_i = waypoint.longitude_i;
+    memcpy(waypoint_msg.name, waypoint.name, sizeof(waypoint_msg.name));
+    memcpy(waypoint_msg.description, waypoint.description, sizeof(waypoint_msg.description));
+    waypoint_msg.icon = waypoint.icon;
+    waypoint_msg.expire = waypoint.expire;
+    waypoint_msg.id = waypoint.id;
+    entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Waypoint_msg, &waypoint_msg);
+    out_queue.push(entry);
+}
+
+void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = 0;
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_TELEMETRY_APP;
+    entry.data.want_response = entry.header.want_ack;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);
+    meshtastic_Telemetry telemetry_msg = {};
+
+    telemetry_msg.time = (uint32_t)time(NULL);
+    telemetry_msg.which_variant = meshtastic_Telemetry_device_metrics_tag;
+    telemetry_msg.variant.device_metrics.battery_level = telemetry.battery_level;
+    telemetry_msg.variant.device_metrics.uptime_seconds = telemetry.uptime_seconds;
+    telemetry_msg.variant.device_metrics.voltage = telemetry.voltage;
+    telemetry_msg.variant.device_metrics.channel_utilization = telemetry.channel_utilization;
+    telemetry_msg.variant.device_metrics.has_battery_level = telemetry.battery_level != 0;
+    telemetry_msg.variant.device_metrics.has_uptime_seconds = telemetry.uptime_seconds != 0;
+    telemetry_msg.variant.device_metrics.has_voltage = telemetry.voltage != 0;
+    telemetry_msg.variant.device_metrics.has_channel_utilization = telemetry.channel_utilization != 0;
+
+    entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
+    out_queue.push(entry);
+}
+
+void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dstnode;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = 0;
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_TELEMETRY_APP;
+    entry.data.want_response = entry.header.want_ack;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);
+    meshtastic_Telemetry telemetry_msg = {};
+
+    telemetry_msg.time = (uint32_t)time(NULL);
+    telemetry_msg.which_variant = meshtastic_Telemetry_environment_metrics_tag;
+    telemetry_msg.variant.environment_metrics.temperature = telemetry.temperature;
+    telemetry_msg.variant.environment_metrics.relative_humidity = telemetry.humidity;
+    telemetry_msg.variant.environment_metrics.barometric_pressure = telemetry.pressure;
+    telemetry_msg.variant.environment_metrics.lux = telemetry.lux;
+
+    entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
+    out_queue.push(entry);
+}
+
 #pragma endregion
 
 #pragma region Helpers

@@ -332,6 +332,10 @@ class MeshtasticCompact {
         SendPositionMessage(my_position, dstnode, chan);
     }
     void SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+
     NodeInfoDB nodeinfo_db;          // NodeInfo database
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
     MC_Position my_position;         // My position, used for replies
