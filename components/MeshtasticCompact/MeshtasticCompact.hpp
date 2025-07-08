@@ -285,14 +285,18 @@ class MeshtasticCompact {
     bool RadioInit();
 
     // callbacks
-    using OnMessageCallback = void (*)(MC_Header header, MC_TextMessage& message);
-    using OnPositionMessageCallback = void (*)(MC_Header header, MC_Position& position, bool needReply);
-    using OnNodeInfoCallback = void (*)(MC_Header header, MC_NodeInfo& nodeinfo, bool needReply);
-    using OnWaypointMessageCallback = void (*)(MC_Header header, MC_Waypoint& waypoint);
+    using OnMessageCallback = void (*)(MC_Header& header, MC_TextMessage& message);
+    using OnPositionMessageCallback = void (*)(MC_Header& header, MC_Position& position, bool needReply);
+    using OnNodeInfoCallback = void (*)(MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply);
+    using OnWaypointMessageCallback = void (*)(MC_Header& header, MC_Waypoint& waypoint);
+    using OnTelemetryDeviceCallback = void (*)(MC_Header& header, MC_Telemetry_Device& telemetry);
+    using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
     void setOnMessage(OnMessageCallback cb) { onMessage = cb; }
+    void setOnTelemetryDevice(OnTelemetryDeviceCallback cb) { onTelemetryDevice = cb; }
+    void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
 
     //
     void getLastSignalData(float& rssi_out, float& snr_out) {
@@ -335,10 +339,12 @@ class MeshtasticCompact {
     bool RadioListen();
     bool RadioSendInit();
     // handlers
-    void intOnMessage(MC_Header header, MC_TextMessage message);
-    void intOnPositionMessage(MC_Header header, MC_Position position, bool want_reply);
-    void intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo, bool want_reply);
-    void intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint);
+    void intOnMessage(MC_Header& header, MC_TextMessage& message);
+    void intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply);
+    void intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply);
+    void intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint);
+    void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);
+    void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);
     // mesh network minimum functionality
     bool send_ack();
 
@@ -381,6 +387,8 @@ class MeshtasticCompact {
     OnPositionMessageCallback onPositionMessage = nullptr;
     OnNodeInfoCallback onNodeInfo = nullptr;
     OnWaypointMessageCallback onWaypointMessage = nullptr;
+    OnTelemetryDeviceCallback onTelemetryDevice = nullptr;
+    OnTelemetryEnvironmentCallback onTelemetryEnvironment = nullptr;
 };
 
 class MeshtasticCompactHelpers {

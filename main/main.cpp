@@ -13,6 +13,7 @@ TODO list:
  - Handle all (most) kind of telemetry sending, receiving
  - Auto ack when needed (when not, then just use a callback?)
  - Fix all callbacks, to disable needreply when sending is disabled
+ - Add has_data tags to structs
 */
 
 #include <stdio.h>
@@ -51,12 +52,12 @@ void PrintHeaderInfo(MC_Header& header) {
 void app_main(void) {
     MeshtasticCompactHelpers::PositionBuilder(meshtasticCompact.my_position, 47.123456f, 8.123456f, 500, 0, 5);
     meshtasticCompact.RadioInit();
-    meshtasticCompact.setOnMessage([](MC_Header header, MC_TextMessage& message) {
+    meshtasticCompact.setOnMessage([](MC_Header& header, MC_TextMessage& message) {
         ESP_LOGI(TAG, "Received message on channel %d: %s", message.chan, message.text.c_str());
         ESP_LOGI(TAG, "Msg type %d", message.type);
         PrintHeaderInfo(header);
     });
-    meshtasticCompact.setOnPositionMessage([](MC_Header header, MC_Position& position, bool needReply) {
+    meshtasticCompact.setOnPositionMessage([](MC_Header& header, MC_Position& position, bool needReply) {
         ESP_LOGI(TAG, "Received position update:");
         ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld, Altitude: %ld", position.latitude_i, position.longitude_i, position.altitude);
         ESP_LOGI(TAG, "Ground Speed: %lu", position.ground_speed);
@@ -67,7 +68,7 @@ void app_main(void) {
             meshtasticCompact.SendMyPosition();  // Reply to the sender
         }
     });
-    meshtasticCompact.setOnNodeInfoMessage([](MC_Header header, MC_NodeInfo& nodeinfo, bool needReply) {
+    meshtasticCompact.setOnNodeInfoMessage([](MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply) {
         ESP_LOGI(TAG, "Received node info:");
         ESP_LOGI(TAG, "Node ID: %s", nodeinfo.id);
         ESP_LOGI(TAG, "Short Name: %s", nodeinfo.short_name);
@@ -84,7 +85,7 @@ void app_main(void) {
             meshtasticCompact.SendMyNodeInfo(header.srcnode);  // Reply to the sender
         }
     });
-    meshtasticCompact.setOnWaypointMessage([](MC_Header header, MC_Waypoint& waypoint) {
+    meshtasticCompact.setOnWaypointMessage([](MC_Header& header, MC_Waypoint& waypoint) {
         ESP_LOGI(TAG, "Received waypoint:");
         ESP_LOGI(TAG, "Waypoint ID: %lu", waypoint.id);
         ESP_LOGI(TAG, "Name: %s", waypoint.name);
@@ -93,9 +94,25 @@ void app_main(void) {
         ESP_LOGI(TAG, "Icon: %lu, Expire: %lu", waypoint.icon, waypoint.expire);
         PrintHeaderInfo(header);
     });
+    meshtasticCompact.setOnTelemetryDevice([](MC_Header& header, MC_Telemetry_Device& telemetry) {
+        ESP_LOGI(TAG, "Received telemetry device data:");
+        ESP_LOGI(TAG, "Battery Voltage: %.2f V", telemetry.voltage);
+        ESP_LOGI(TAG, "Battery Percent: %lu", telemetry.battery_level);
+        ESP_LOGI(TAG, "channel_utilization: %.2f °C", telemetry.channel_utilization);
+        ESP_LOGI(TAG, "Uptime: %lu seconds", telemetry.uptime_seconds);
+        PrintHeaderInfo(header);
+    });
+    meshtasticCompact.setOnTelemetryEnvironment([](MC_Header& header, MC_Telemetry_Environment& telemetry) {
+        ESP_LOGI(TAG, "Received telemetry environment data:");
+        ESP_LOGI(TAG, "Temperature: %.2f °C", telemetry.temperature);
+        ESP_LOGI(TAG, "Humidity: %.2f %%", telemetry.humidity);
+        ESP_LOGI(TAG, "Pressure: %.2f hPa", telemetry.pressure);
+        ESP_LOGI(TAG, "Lux: %.2f", telemetry.lux);
+        PrintHeaderInfo(header);
+    });
+
     meshtasticCompact.SendMyNodeInfo(0xffffffff, true);
     vTaskDelay(15000 / portTICK_PERIOD_MS);
-    MC_Position position;
     while (1) {
         meshtasticCompact.SendMyNodeInfo();
         vTaskDelay(25000 / portTICK_PERIOD_MS);

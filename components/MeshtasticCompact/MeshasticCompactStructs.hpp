@@ -71,4 +71,17 @@ struct MC_OutQueueEntry {
     size_t key_len;  // Length of the key in bytes
 };
 
+struct MC_Telemetry_Device {
+    uint32_t battery_level;
+    uint32_t uptime_seconds;
+    float voltage;
+    float channel_utilization;
+};
+
+struct MC_Telemetry_Environment {
+    float temperature;
+    float humidity;
+    float pressure;
+    float lux;
+};
 #endif  // MeshtasticCompactStructs_h

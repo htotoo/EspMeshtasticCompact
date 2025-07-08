@@ -224,14 +224,14 @@ bool MeshtasticCompact::RadioSendInit() {
     xTaskCreate(&task_send, "RadioSend", 1024 * 4, this, 5, NULL);
     return true;
 }
-void MeshtasticCompact::intOnMessage(MC_Header header, MC_TextMessage message) {
+void MeshtasticCompact::intOnMessage(MC_Header& header, MC_TextMessage& message) {
     // we won't cache, it is the upper layer's thing.
     if (onMessage) {
         onMessage(header, message);
     };
 }
 
-void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position position, bool want_reply) {
+void MeshtasticCompact::intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply) {
     if (want_reply == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
     bool needReply = (want_reply == true && !is_auto_full_node);
     if (onPositionMessage) {
@@ -243,7 +243,7 @@ void MeshtasticCompact::intOnPositionMessage(MC_Header header, MC_Position posit
     }
 }
 
-void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo, bool want_reply) {
+void MeshtasticCompact::intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply) {
     nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);  // if want ack, then exchange happened, but we got info too
     nodeinfo.last_updated = hal->millis();
     bool needReply = (want_reply == true && !is_auto_full_node);
@@ -255,10 +255,23 @@ void MeshtasticCompact::intOnNodeInfo(MC_Header header, MC_NodeInfo nodeinfo, bo
         SendMyNodeInfo(header.srcnode);
     }
 }
-void MeshtasticCompact::intOnWaypointMessage(MC_Header header, MC_Waypoint waypoint) {
+void MeshtasticCompact::intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint) {
     // should save this to waypoint database //todo
     if (onWaypointMessage) {
         onWaypointMessage(header, waypoint);
+    };
+}
+
+void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry) {
+    if (onTelemetryDevice) {
+        onTelemetryDevice(header, telemetry);
+    };
+}
+
+void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry) {
+    // we won't cache, it is the upper layer's thing.
+    if (onTelemetryEnvironment) {
+        onTelemetryEnvironment(header, telemetry);
     };
 }
 
@@ -306,7 +319,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 1) {
                 ESP_LOGI(TAG, "Received a message packet");
                 // payload: utf8 text
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 2) {
                 ESP_LOGI(TAG, "Received a remote hardware packet");
                 // payload: protobuf HardwareMessage - NOT INTERESTED IN YET
@@ -323,7 +337,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
                     if (position_msg.has_latitude_i && position_msg.has_longitude_i) {
-                        intOnPositionMessage(header, {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source}, decodedtmp.want_response);
+                        MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source};
+                        intOnPositionMessage(header, position, decodedtmp.want_response);
                     };
                     ;
                 } else {
@@ -364,7 +379,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: utf8 text with Unishox2 Compression
                 char uncompressed_data[256] = {0};
                 size_t uncompressed_size = unishox2_decompress((const char*)&decodedtmp.payload.bytes, decodedtmp.payload.size, uncompressed_data, sizeof(uncompressed_data), USX_PSET_DFLT);
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 8) {
                 ESP_LOGI(TAG, "Received a waypoint packet");
                 // payload: protobuf Waypoint
@@ -385,11 +401,13 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 10) {
                 ESP_LOGI(TAG, "Received a detection sensor packet");
                 // payload: utf8 text
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_DETECTOR_SENSOR});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_DETECTOR_SENSOR};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 11) {
                 ESP_LOGI(TAG, "Received an alert packet");
                 // payload: utf8 text
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_ALERT});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_ALERT};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 12) {
                 ESP_LOGI(TAG, "Received a key verification packet");
                 // payload: protobuf KeyVerification
@@ -402,21 +420,24 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 32) {
                 ESP_LOGI(TAG, "Received a reply packet");
                 // payload: ASCII Plaintext //TODO determine the in/out part and send reply if needed
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_PING});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_PING};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 34) {
                 ESP_LOGI(TAG, "Received a paxcounter packet");
                 // payload: protobuf DROP
             } else if (decodedtmp.portnum == 64) {
                 ESP_LOGI(TAG, "Received a serial packet");
                 // payload: uart rx/tx data
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_UART});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_UART};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 65) {
                 ESP_LOGI(TAG, "Received a STORE_FORWARD_APP  packet");
                 // payload: ?
             } else if (decodedtmp.portnum == 66) {
                 ESP_LOGI(TAG, "Received a RANGE_TEST_APP  packet");
                 // payload: ascii text
-                intOnMessage(header, {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_RANGE_TEST});
+                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_RANGE_TEST};
+                intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 67) {
                 ESP_LOGI(TAG, "Received a TELEMETRY_APP   packet");
                 // payload: Protobuf
@@ -425,23 +446,37 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     ESP_LOGI(TAG, "Telemetry Time: %lu", telemetry_msg.time);
                     switch (telemetry_msg.which_variant) {
                         case meshtastic_Telemetry_device_metrics_tag:
-                            ESP_LOGI(TAG, "Device Metrics: Battery Level: %lu", telemetry_msg.variant.device_metrics.battery_level);
+                            MC_Telemetry_Device device_metrics;
+                            device_metrics.battery_level = telemetry_msg.variant.device_metrics.battery_level;
+                            device_metrics.uptime_seconds = telemetry_msg.variant.device_metrics.uptime_seconds;
+                            device_metrics.voltage = telemetry_msg.variant.device_metrics.voltage;
+                            device_metrics.channel_utilization = telemetry_msg.variant.device_metrics.channel_utilization;
+                            intOnTelemetryDevice(header, device_metrics);
                             break;
                         case meshtastic_Telemetry_environment_metrics_tag:
-                            ESP_LOGI(TAG, "Environment Metrics: Temperature: %f", telemetry_msg.variant.environment_metrics.temperature);
+                            MC_Telemetry_Environment environment_metrics;
+                            environment_metrics.temperature = telemetry_msg.variant.environment_metrics.temperature;
+                            environment_metrics.humidity = telemetry_msg.variant.environment_metrics.relative_humidity;
+                            environment_metrics.pressure = telemetry_msg.variant.environment_metrics.barometric_pressure;
+                            environment_metrics.lux = telemetry_msg.variant.environment_metrics.lux;
+                            intOnTelemetryEnvironment(header, environment_metrics);
                             break;
                         case meshtastic_Telemetry_air_quality_metrics_tag:
-                            ESP_LOGI(TAG, "Air Quality Metrics: PM2.5: %lu ", telemetry_msg.variant.air_quality_metrics.pm25_standard);
+                            // ESP_LOGI(TAG, "Air Quality Metrics: PM2.5: %lu ", telemetry_msg.variant.air_quality_metrics.pm25_standard);
+                            // skipping, not interesting yet PR-s are welcome
                             break;
                         case meshtastic_Telemetry_power_metrics_tag:
+                            // skipping, not interesting yet PR-s are welcome
                             break;
                         case meshtastic_Telemetry_local_stats_tag:
-                            ESP_LOGI(TAG, "Local Stats: Packets Sent: %lu, Packets Received: %lu", telemetry_msg.variant.local_stats.num_packets_tx, telemetry_msg.variant.local_stats.num_packets_rx);
+                            // skipping, not interesting yet PR-s are welcome
                             break;
                         case meshtastic_Telemetry_health_metrics_tag:
-                            ESP_LOGI(TAG, "Health Metrics: Hearth BPM: %u, Temp: %f  So2: %u", telemetry_msg.variant.health_metrics.heart_bpm, telemetry_msg.variant.health_metrics.temperature, telemetry_msg.variant.health_metrics.spO2);
+                            // ESP_LOGI(TAG, "Health Metrics: Hearth BPM: %u, Temp: %f  So2: %u", telemetry_msg.variant.health_metrics.heart_bpm, telemetry_msg.variant.health_metrics.temperature, telemetry_msg.variant.health_metrics.spO2);
+                            //  skipping, not interesting yet PR-s are welcome
                             break;
                         case meshtastic_Telemetry_host_metrics_tag:
+                            // skipping, not interesting yet PR-s are welcome
                             break;
                     };
                 } else {
