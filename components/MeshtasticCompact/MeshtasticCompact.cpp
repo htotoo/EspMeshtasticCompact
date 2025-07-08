@@ -143,7 +143,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             memcpy(&payload[16], encrypted_payload, payload_len);
             // Send the packet
             {
-                std::unique_lock<std::mutex> lock(mshcomp->mtx);
+                std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
                 ESP_LOGW(TAG, "Try send packet");
                 int err = mshcomp->radio.transmit(payload, total_len);
                 if (err == RADIOLIB_ERR_NONE) {
@@ -181,7 +181,7 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             int err = 0;
             int rxLen = 0;
             {
-                std::unique_lock<std::mutex> lock(mshcomp->mtx);
+                std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
                 ESP_LOGW(TAG, "Packet received, trying to read data");
                 rxLen = mshcomp->radio.getPacketLength();
                 if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
@@ -304,6 +304,7 @@ void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& ro
 
     if (!is_in_stealth_mode && is_auto_full_node && is_send_enabled) {
         // todo flood my reply if needed
+        ESP_LOGI(TAG, "AUTO Flooding traceroute reply to node 0x%08" PRIx32, header.srcnode);
     }
 }
 

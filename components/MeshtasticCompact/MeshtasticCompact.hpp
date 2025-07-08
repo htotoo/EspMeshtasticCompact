@@ -18,6 +18,10 @@
 #include <deque>
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
 
+/**
+ * @brief Handles an in-memory database of node information.
+ *
+ */
 class NodeInfoDB {
    public:
     static constexpr size_t MAX_NODES = 32;
@@ -57,7 +61,13 @@ class NodeInfoDB {
     iterator begin() { return iterator(nodeinfos, valid, 0); }
     iterator end() { return iterator(nodeinfos, valid, MAX_NODES); }
 
-    // Add or update a node entry
+    /**
+     * @brief Adds new entry or updates existing node information.
+     * If the node already exists, it updates the information. If no space, uses LRU policy to overwrite the oldest entry.
+     *
+     * @param node_id
+     * @param info
+     */
     void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
         // Try to update existing
         for (size_t i = 0; i < MAX_NODES; ++i) {
@@ -89,7 +99,12 @@ class NodeInfoDB {
         is_position_valid[oldest_idx] = false;
     }
 
-    // Get pointer to nodeinfo by node_id, or nullptr if not found
+    /**
+     * @brief Returns a pointer to the node information for the given node_id.
+     *
+     * @param node_id
+     * @return MC_NodeInfo*
+     */
     MC_NodeInfo* get(uint32_t node_id) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -99,7 +114,11 @@ class NodeInfoDB {
         return nullptr;
     }
 
-    // Delete a node entry by node_id
+    /**
+     * @brief Removes a node entry by node_id. (Along with position if exists)
+     *
+     * @param node_id
+     */
     void remove(uint32_t node_id) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -110,7 +129,10 @@ class NodeInfoDB {
         }
     }
 
-    // Clear all node entries
+    /**
+     * @brief Removes all entries from the database and the position information too.
+     *
+     */
     void clearAll() {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             valid[i] = false;
@@ -119,7 +141,14 @@ class NodeInfoDB {
         }
     }
 
-    // Get position for a valid node by node_id, returns true if found and valid
+    /**
+     * @brief Get the Position object for the node with the given node_id.
+     *
+     * @param node_id
+     * @param out_position
+     * @return true Got position information for the node.
+     * @return false Don't have position information for the node.
+     */
     bool getPosition(uint32_t node_id, MC_Position& out_position) const {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id && is_position_valid[i]) {
@@ -130,7 +159,14 @@ class NodeInfoDB {
         return false;
     }
 
-    // Set position for a valid node by node_id, returns true if successful
+    /**
+     * @brief Set the Position object for the node with the given node_id.
+     *
+     * @param node_id
+     * @param position
+     * @return true Successfully set the position for the node.
+     * @return false Node with the given node_id not found or position not set.
+     */
     bool setPosition(uint32_t node_id, const MC_Position& position) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -142,7 +178,11 @@ class NodeInfoDB {
         return false;
     }
 
-    // Remove position for a node by node_id
+    /**
+     * @brief Remove the position information for the node with the given node_id.
+     *
+     * @param node_id
+     */
     void removePosition(uint32_t node_id) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -156,9 +196,9 @@ class NodeInfoDB {
 
    private:
     MC_NodeInfo nodeinfos[MAX_NODES];
-    MC_Position positions[MAX_NODES];  // Optional: if you want to store positions too
-    bool is_position_valid[MAX_NODES] = {};
-    bool valid[MAX_NODES] = {};
+    MC_Position positions[MAX_NODES];
+    bool is_position_valid[MAX_NODES] = {};  // stores if the position is stored for the node
+    bool valid[MAX_NODES] = {};              // stores if the index is taken or free
 };
 
 class MeshCompactOutQueue {
@@ -241,7 +281,7 @@ class MeshtasticCompactRouter {
         uint32_t msgid;
     };
 
-    void setExcludeSelf(bool value) { exclude_self = value; }
+    void setExcludeSelf(bool value) { exclude_self = value; }  // Please don't adjust this unless you know what you are doing!
     void setMyId(uint32_t id) { my_id = id; }
 
     MeshtasticCompactRouter() : count(0), head(0) {}
@@ -300,16 +340,34 @@ class MeshtasticCompact {
     void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
     void setOnTraceroute(OnTracerouteCallback cb) { onTraceroute = cb; }
 
-    //
+    /**
+     * @brief Get the Last Signal Strengh Data
+     *
+     * @param rssi_out RSSI value
+     * @param snr_out SNR value
+     */
     void getLastSignalData(float& rssi_out, float& snr_out) {
         rssi_out = rssi;
         snr_out = snr;
     }
 
+    /**
+     * @brief Set the Send Enabled
+     *
+     * @param enabled If set to false, no packets will be sent, but we still receive them.
+     */
     void setSendEnabled(bool enabled) {
         is_send_enabled = enabled;
     }
     void setAutoFullNode(bool enabled) { is_auto_full_node = enabled; }  // if true, sends ack, traceroute reply, and position reply automatically
+
+    /**
+     * @brief Set the Send Hop Limit object
+     *
+     * @param limit
+     * @return true Valid hop limit set
+     * @return false Invalid hop limit, must be between 1 and 7
+     */
     bool setSendHopLimit(uint8_t limit) {
         if (limit > 0 && limit <= 7) {
             send_hop_limit = limit;
@@ -317,10 +375,22 @@ class MeshtasticCompact {
         }
         return false;
     }
+
+    /**
+     * @brief Set the Stealth Mode
+     *
+     * @param stealth If set to true, we don't respond to traceroute even in auto full node mode! harder to find us. We even don't send ack.
+     */
     void setStealthMode(bool stealth) {
         is_in_stealth_mode = stealth;
     }
 
+    /**
+     * @brief Set the My Names object
+     *
+     * @param short_name
+     * @param long_name
+     */
     void setMyNames(const char* short_name, const char* long_name);
     MC_NodeInfo* getMyNodeInfo() {
         return &my_nodeinfo;
@@ -341,60 +411,63 @@ class MeshtasticCompact {
     void SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
     void SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
 
-    NodeInfoDB nodeinfo_db;          // NodeInfo database
+    NodeInfoDB nodeinfo_db;          // NodeInfo database.
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
-    MC_Position my_position;         // My position, used for replies
+    MC_Position my_position;         // My position, used for auto replies (when enabled) on position requests. Or when you call SendMyPosition()
    private:
-    bool RadioListen();
-    bool RadioSendInit();
+    bool RadioListen();    // inits the listening thread for the radio
+    bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
     // handlers
-    void intOnMessage(MC_Header& header, MC_TextMessage& message);
-    void intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply);
-    void intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply);
-    void intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint);
-    void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);
-    void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);
-    void intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery);
+    void intOnMessage(MC_Header& header, MC_TextMessage& message);                           // Called when got any text based messages
+    void intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply);    // Called on position messages
+    void intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply);           // Called on node info messages
+    void intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint);                     // Called on waypoint messages
+    void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);            // Called on telemetry device messages
+    void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);  // Called on telemetry environment messages
+    void intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery);             // Called on traceroute messages
+
     // mesh network minimum functionality
-    void send_ack(MC_Header& header);
+
+    void send_ack(MC_Header& header);  // sends an ack packet to the source node based on the header
 
     // decoding
-    int16_t ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp);
-    int16_t try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MC_Header& header);
-    bool pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct);
-    size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);
-    static void task_listen(void* pvParameters);
-    static void task_send(void* pvParameters);
-    bool aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len);
+    int16_t ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
 
-    float rssi, snr;
-    bool is_send_enabled = true;
-    uint8_t send_hop_limit = 7;  // default hop limit for sending packets
-    bool is_auto_full_node = true;
-    bool is_in_stealth_mode = false;  // if set to true, we don't respond to traceroute even in auto full node mode! harder to find us. we even don't send ack
+    int16_t try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MC_Header& header);                 // the simple packet decoder for any type of encrypted messages.
+    bool pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct);                                                                  // decode the protobuf message from bytes
+    size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);                                                                 // encode the protobuf message to bytes
+    static void task_listen(void* pvParameters);                                                                                                                                         // Task for listening to the radio and processing incoming packets
+    static void task_send(void* pvParameters);                                                                                                                                           // Task for sending packets from the out_queue
+    bool aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len);  // decrypts the meshtastic payload using AES
 
-    MC_NodeInfo my_nodeinfo;  // My node info
+    float rssi, snr;                  // store last signal data
+    bool is_send_enabled = true;      // global sending enabled flag. if false, noone can send anything
+    uint8_t send_hop_limit = 7;       // default hop limit for sending packets
+    bool is_auto_full_node = true;    // if true, we automatically send ack, traceroute reply, and position reply when needed
+    bool is_in_stealth_mode = false;  // if true, we don't respond to traceroute even in auto full node mode! harder to find us. We even don't send ack.
+
+    MC_NodeInfo my_nodeinfo;  // My node info. Used in many places. Set it carefully.
 
     EspHal* hal = new EspHal(9, 11, 10);
     SX1262 radio = new Module(hal, 8, 14, 12, 13);
 
     const uint8_t default_l1_key[16] =
         {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,
-         0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};
+         0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};  // default aes128 key for L1 encryption
     const uint8_t default_chan_key[32] = {
         0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};  // default channel key
 
     mbedtls_aes_context aes_ctx;
-    mutable std::mutex mtx;
-    bool need_run = true;
+    mutable std::mutex mtx_radio;
+    bool need_run = true;  // thread exit flag
 
-    MeshCompactOutQueue out_queue;
+    MeshCompactOutQueue out_queue;  // Outgoing queue for packets to be sent.
 
-    // Function pointer for onMessage callback
-    OnMessageCallback onMessage = nullptr;
+    // Callback function pointers
+    OnMessageCallback onMessage = nullptr;  // Function pointer for onMessage callback
     OnPositionMessageCallback onPositionMessage = nullptr;
     OnNodeInfoCallback onNodeInfo = nullptr;
     OnWaypointMessageCallback onWaypointMessage = nullptr;
@@ -403,6 +476,10 @@ class MeshtasticCompact {
     OnTracerouteCallback onTraceroute = nullptr;
 };
 
+/**
+ * @brief Simple static helpers for building message objects easily.
+ *
+ */
 class MeshtasticCompactHelpers {
    public:
     static void NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name);

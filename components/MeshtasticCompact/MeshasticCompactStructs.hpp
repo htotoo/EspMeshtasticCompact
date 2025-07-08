@@ -62,7 +62,7 @@ struct MC_Waypoint {
     int32_t latitude_i;     // Latitude in degrees
     int32_t longitude_i;    // Longitude in degrees
     uint32_t icon;          // Icon representing the waypoint
-    uint32_t expire;        // Expiration time of the waypoint
+    uint32_t expire;        // Expiration time of the waypoint in unix timestamp format
 };
 
 struct MC_OutQueueEntry {
