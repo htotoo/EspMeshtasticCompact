@@ -233,11 +233,11 @@ void MeshtasticCompact::intOnMessage(MC_Header& header, MC_TextMessage& message)
 
 void MeshtasticCompact::intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply) {
     if (want_reply == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
-    bool needReply = (want_reply == true && !is_auto_full_node);
+    bool needReply = (want_reply == true && !is_auto_full_node && is_send_enabled);
     if (onPositionMessage) {
         onPositionMessage(header, position, needReply);
     };
-    if (want_reply && is_auto_full_node) {
+    if (want_reply && is_auto_full_node && is_send_enabled) {
         ESP_LOGI(TAG, "AUTO Sending my pos info to node 0x%08" PRIx32, header.srcnode);
         SendMyPosition(header.srcnode);
     }
@@ -246,11 +246,11 @@ void MeshtasticCompact::intOnPositionMessage(MC_Header& header, MC_Position& pos
 void MeshtasticCompact::intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply) {
     nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);  // if want ack, then exchange happened, but we got info too
     nodeinfo.last_updated = hal->millis();
-    bool needReply = (want_reply == true && !is_auto_full_node);
+    bool needReply = (want_reply == true && !is_auto_full_node) && is_send_enabled;
     if (onNodeInfo) {
         onNodeInfo(header, nodeinfo, needReply);
     };
-    if (want_reply && is_auto_full_node) {
+    if (want_reply && is_auto_full_node && is_send_enabled) {
         ESP_LOGI(TAG, "AUTO Sending my node info to node 0x%08" PRIx32, header.srcnode);
         SendMyNodeInfo(header.srcnode);
     }
@@ -585,6 +585,7 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
 #pragma region PacketBuilders
 
 void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bool exchange) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = nodeinfo.node_id;
@@ -627,6 +628,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
 }
 
 void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnode, uint8_t chan, MC_MESSAGE_TYPE type, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
@@ -648,6 +650,7 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
 }
 
 void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dest_node_id;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
@@ -669,6 +672,7 @@ void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t c
 }
 
 void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
@@ -703,6 +707,7 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
 }
 
 void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
@@ -732,6 +737,7 @@ void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstn
 }
 
 void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
@@ -765,6 +771,7 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
 }
 
 void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
     MC_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
