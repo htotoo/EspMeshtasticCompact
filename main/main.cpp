@@ -141,5 +141,19 @@ void app_main(void) {
     while (1) {
         meshtasticCompact.SendMyNodeInfo();
         vTaskDelay(25000 / portTICK_PERIOD_MS);
+        MC_Telemetry_Environment telemetry_env;
+        telemetry_env.temperature = 25.0f + (esp_random() % 100) / 10.0f;  // Random temperature between 25.0 and 26.9
+        telemetry_env.humidity = 50.0f + (esp_random() % 100) / 10.0f;     // Random humidity between 50.0 and 51.9
+        telemetry_env.pressure = 1013.25f + (esp_random() % 100) / 10.0f;  // Random pressure between 1013.25 and 1014.24
+        telemetry_env.lux = 100.0f + (esp_random() % 100) / 10.0f;         // Random lux between 100.0 and 199.9
+        meshtasticCompact.SendTelemetryEnvironment(telemetry_env);
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
+        MC_Telemetry_Device telemetry_dev;
+        telemetry_dev.voltage = 3.7f + (esp_random() % 100) / 1000.0f;              // Random voltage between 3.7 and 3.8
+        telemetry_dev.battery_level = 80 + (esp_random() % 21);                     // Random battery level between 80 and 100
+        telemetry_dev.uptime_seconds = 3600 + (esp_random() % 3600);                // Random uptime between 3600 and 7200 seconds
+        telemetry_dev.channel_utilization = 0.5f + (esp_random() % 500) / 1000.0f;  // Random channel utilization between 0.5 and 1.0
+        meshtasticCompact.SendTelemetryDevice(telemetry_dev);
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
     }
 }

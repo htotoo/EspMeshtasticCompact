@@ -964,9 +964,13 @@ void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telem
     telemetry_msg.time = (uint32_t)time(NULL);
     telemetry_msg.which_variant = meshtastic_Telemetry_environment_metrics_tag;
     telemetry_msg.variant.environment_metrics.temperature = telemetry.temperature;
+    telemetry_msg.variant.environment_metrics.has_temperature = telemetry.temperature != -10000;
     telemetry_msg.variant.environment_metrics.relative_humidity = telemetry.humidity;
+    telemetry_msg.variant.environment_metrics.has_relative_humidity = telemetry.humidity != -1;
     telemetry_msg.variant.environment_metrics.barometric_pressure = telemetry.pressure;
+    telemetry_msg.variant.environment_metrics.has_barometric_pressure = telemetry.pressure != -1;
     telemetry_msg.variant.environment_metrics.lux = telemetry.lux;
+    telemetry_msg.variant.environment_metrics.has_lux = telemetry.lux != -1;
 
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
     out_queue.push(entry);
