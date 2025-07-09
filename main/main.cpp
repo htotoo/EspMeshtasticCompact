@@ -9,13 +9,14 @@
 
 /*
 TODO list:
- - Traceroute packet send / append / reply (intOnTraceroute)
- - Test telemetry rx / tx
  - Add has_data tags to structs
  - Add pin configuration options
  - Add frequency configuration options
  - Add channel configuration options
  - Add LONGFAST / .. options
+ - Add multiple module type support
+ - Add callback on ANY type of packets
+ - Revise send_ack
 */
 
 #include <stdio.h>

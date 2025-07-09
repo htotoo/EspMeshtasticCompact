@@ -676,7 +676,7 @@ void MeshtasticCompact::send_ack(MC_Header& header) {
     entry.header.srcnode = my_nodeinfo.node_id;
     entry.header.packet_id = header.packet_id;  // Use the same packet ID for ACK
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 0;  // No need for an ACK for ACKs
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.data.request_id = header.request_id;
     entry.header.chan_hash = header.chan_hash;
@@ -700,16 +700,16 @@ void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery
     entry.header.dstnode = header.dstnode;
     entry.header.srcnode = header.srcnode;
     entry.header.packet_id = header.packet_id;
-    entry.header.hop_limit = header.hop_limit;  // Use the same hop limit
+    entry.header.hop_limit = header.hop_limit;
     entry.header.want_ack = 1;
     entry.header.via_mqtt = false;
     entry.header.hop_start = header.hop_start;
     entry.header.chan_hash = header.chan_hash;
     entry.header.via_mqtt = 0;
     entry.header.reply_id = header.reply_id;
-    entry.header.request_id = header.request_id;  // Set request ID to the same as reply ID
+    entry.header.request_id = header.request_id;
     entry.encType = 1;
-    entry.data.request_id = header.request_id;  // Set request ID to the same as reply ID
+    entry.data.request_id = header.request_id;
     entry.data.reply_id = 0;
     entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
     entry.data.want_response = 0;  // this is reply, so no need for response
@@ -750,6 +750,7 @@ void MeshtasticCompact::SendTraceroute(uint32_t dest_node_id, uint8_t chan, uint
     meshtastic_RouteDiscovery route_discovery_msg = meshtastic_RouteDiscovery_init_default;
     entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
     entry.data.want_response = true;
+    entry.data.bitfield = 0;
     entry.data.payload.size = pb_encode_to_bytes(entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_RouteDiscovery_msg, &route_discovery_msg);
     entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
     entry.key_len = sizeof(default_l1_key);  // Use default channel key length
@@ -763,7 +764,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     entry.header.srcnode = nodeinfo.node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = exchange;
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
     entry.header.chan_hash = 8;  // Use default channel hash
@@ -791,8 +792,8 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     user_msg.hw_model = (meshtastic_HardwareModel)nodeinfo.hw_model;
     user_msg.is_licensed = false;
     user_msg.is_unmessagable = false;
-    entry.data.portnum = meshtastic_PortNum_NODEINFO_APP;  // NodeInfo portnum
-    entry.data.want_response = entry.header.want_ack;      // Set want_response based on header
+    entry.data.portnum = meshtastic_PortNum_NODEINFO_APP;
+    entry.data.want_response = entry.header.want_ack;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_User_msg, &user_msg);
     entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
     entry.key_len = sizeof(default_l1_key);  // Use default channel key length
@@ -806,12 +807,12 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 1;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.want_ack = 1;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
-    entry.header.chan_hash = chan;  // Use default channel hash
-    entry.header.via_mqtt = 0;      // Not used in this case
-    entry.encType = 1;              // AES encryption //todo create a query for it. now go with aes
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
     entry.data.payload.size = text.size();
     memcpy(entry.data.payload.bytes, text.data(), text.size());
     entry.data.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;  // NodeInfo portnum
@@ -831,10 +832,10 @@ void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t c
     entry.header.want_ack = 1;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
-    entry.header.chan_hash = chan;                         // Use default channel hash
-    entry.header.via_mqtt = 0;                             // Not used in this case
-    entry.encType = 1;                                     // AES encryption //todo create a query for it. now go with aes
-    entry.data.portnum = meshtastic_PortNum_POSITION_APP;  // NodeInfo portnum
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_POSITION_APP;
     entry.data.want_response = 1;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
@@ -853,10 +854,10 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
-    entry.header.chan_hash = chan;                         // Use default channel hash
-    entry.header.via_mqtt = 0;                             // Not used in this case
-    entry.encType = 1;                                     // AES encryption //todo create a query for it. now go with aes
-    entry.data.portnum = meshtastic_PortNum_POSITION_APP;  // NodeInfo portnum
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_POSITION_APP;
     entry.data.want_response = entry.header.want_ack;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
@@ -869,11 +870,11 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     position_msg.sats_in_view = position.sats_in_view;
     position_msg.location_source = (meshtastic_Position_LocSource)position.location_source;
     position_msg.precision_bits = 17;
-    position_msg.has_altitude = position.altitude != 0;          // Set has_altitude based on altitude value
-    position_msg.has_ground_speed = position.ground_speed != 0;  // Set has_ground_speed based on speed value
-    position_msg.has_latitude_i = true;                          // Set has_latitude_i to true
-    position_msg.has_longitude_i = true;                         // Set has_longitude_i to true
-    position_msg.has_altitude = position.altitude != 0;          // Set has_alt
+    position_msg.has_altitude = position.altitude != 0;
+    position_msg.has_ground_speed = position.ground_speed != 0;
+    position_msg.has_latitude_i = true;
+    position_msg.has_longitude_i = true;
+    position_msg.has_altitude = position.altitude != 0;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Position_msg, &position_msg);
     out_queue.push(entry);
 }
@@ -885,13 +886,13 @@ void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstn
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
-    entry.header.chan_hash = chan;                         // Use default channel hash
-    entry.header.via_mqtt = 0;                             // Not used in this case
-    entry.encType = 1;                                     // AES encryption //todo create a query for it. now go with aes
-    entry.data.portnum = meshtastic_PortNum_WAYPOINT_APP;  // NodeInfo portnum
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;  // AES encryption
+    entry.data.portnum = meshtastic_PortNum_WAYPOINT_APP;
     entry.data.want_response = entry.header.want_ack;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
@@ -915,7 +916,7 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
     entry.header.chan_hash = chan;
@@ -949,7 +950,7 @@ void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telem
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 0;  // dstnode != 0xffffffff;  // If dstnode is not broadcast, we want an ack
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
     entry.header.chan_hash = chan;
