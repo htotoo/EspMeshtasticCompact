@@ -678,13 +678,13 @@ void MeshtasticCompact::send_ack(MC_Header& header) {
     entry.header.hop_limit = send_hop_limit;
     entry.header.want_ack = 0;  // No need for an ACK for ACKs
     entry.header.via_mqtt = false;
-    entry.data.request_id = header.request_id;            // Use the same request ID
-    entry.header.chan_hash = header.chan_hash;            // Use the same channel hash
-    entry.encType = 1;                                    // AES encryption
-    entry.data.portnum = meshtastic_PortNum_ROUTING_APP;  // ACK portnum
-    entry.data.want_response = 0;                         // No response needed for ACKs
-    entry.key = (uint8_t*)default_l1_key;                 // Use default channel key for encryption
-    entry.key_len = sizeof(default_l1_key);               // Use default channel key length
+    entry.data.request_id = header.request_id;
+    entry.header.chan_hash = header.chan_hash;
+    entry.encType = 1;
+    entry.data.portnum = meshtastic_PortNum_ROUTING_APP;
+    entry.data.want_response = 0;
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);
     meshtastic_Routing c = meshtastic_Routing_init_default;
     c.error_reason = meshtastic_Routing_Error_NONE;  // No error reason for ACK
     c.which_variant = meshtastic_Routing_error_reason_tag;
@@ -706,9 +706,17 @@ void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery
     entry.header.hop_start = header.hop_start;
     entry.header.chan_hash = header.chan_hash;
     entry.header.via_mqtt = 0;
+    entry.header.reply_id = header.reply_id;
+    entry.header.request_id = header.request_id;  // Set request ID to the same as reply ID
     entry.encType = 1;
+    entry.data.request_id = header.request_id;  // Set request ID to the same as reply ID
+    entry.data.reply_id = 0;
     entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
-    entry.data.want_response = header.request_id == 0;  // we want response, when this is the first message.
+    entry.data.want_response = 0;  // this is reply, so no need for response
+    entry.data.bitfield = 1;
+    entry.data.dest = 0;
+    entry.data.source = 0;
+    entry.data.emoji = 0;
     meshtastic_RouteDiscovery meshtastic_route_discovery = meshtastic_RouteDiscovery_init_default;
     meshtastic_route_discovery.route_count = route_discovery.route_count;
     meshtastic_route_discovery.snr_towards_count = route_discovery.snr_towards_count;
@@ -719,6 +727,30 @@ void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery
     memcpy(meshtastic_route_discovery.route_back, route_discovery.route_back, sizeof(meshtastic_route_discovery.route_back));
     memcpy(meshtastic_route_discovery.snr_back, route_discovery.snr_back, sizeof(meshtastic_route_discovery.snr_back));
     entry.data.payload.size = pb_encode_to_bytes(entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_RouteDiscovery_msg, &meshtastic_route_discovery);
+    entry.key = (uint8_t*)default_l1_key;
+    entry.key_len = sizeof(default_l1_key);
+    out_queue.push(entry);
+}
+
+void MeshtasticCompact::SendTraceroute(uint32_t dest_node_id, uint8_t chan, uint32_t sender_node_id) {
+    if (!is_send_enabled) return;
+    if (is_in_stealth_mode) return;
+
+    MC_OutQueueEntry entry;
+    entry.header.dstnode = dest_node_id;
+    entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
+    entry.header.packet_id = 0;
+    entry.header.hop_limit = send_hop_limit;
+    entry.header.want_ack = 1;
+    entry.header.via_mqtt = false;
+    entry.header.hop_start = send_hop_limit;
+    entry.header.chan_hash = chan;
+    entry.header.via_mqtt = 0;
+    entry.encType = 1;
+    meshtastic_RouteDiscovery route_discovery_msg = meshtastic_RouteDiscovery_init_default;
+    entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
+    entry.data.want_response = true;
+    entry.data.payload.size = pb_encode_to_bytes(entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_RouteDiscovery_msg, &route_discovery_msg);
     entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
     entry.key_len = sizeof(default_l1_key);  // Use default channel key length
     out_queue.push(entry);
