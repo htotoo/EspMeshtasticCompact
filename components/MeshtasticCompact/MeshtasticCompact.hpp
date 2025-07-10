@@ -441,6 +441,7 @@ class MeshtasticCompact {
     static void task_listen(void* pvParameters);                                                                                                                                         // Task for listening to the radio and processing incoming packets
     static void task_send(void* pvParameters);                                                                                                                                           // Task for sending packets from the out_queue
     bool aes_decrypt_meshtastic_payload(const uint8_t* key, uint16_t keySize, uint32_t packet_id, uint32_t from_node, const uint8_t* encrypted_in, uint8_t* decrypted_out, size_t len);  // decrypts the meshtastic payload using AES
+    uint8_t getLastByteOfNodeNum(uint32_t num);
 
     float rssi, snr;                  // store last signal data
     bool is_send_enabled = true;      // global sending enabled flag. if false, noone can send anything
