@@ -16,6 +16,13 @@
 #define PACKET_FLAGS_HOP_START_MASK 0xE0
 #define PACKET_FLAGS_HOP_START_SHIFT 5
 
+#define BITFIELD_WANT_RESPONSE_SHIFT 1
+#define BITFIELD_OK_TO_MQTT_SHIFT 0
+#define BITFIELD_WANT_RESPONSE_MASK (1 << BITFIELD_WANT_RESPONSE_SHIFT)
+#define BITFIELD_OK_TO_MQTT_MASK (1 << BITFIELD_OK_TO_MQTT_SHIFT)
+#define NODEINFO_BITFIELD_IS_KEY_MANUALLY_VERIFIED_SHIFT 0
+#define NODEINFO_BITFIELD_IS_KEY_MANUALLY_VERIFIED_MASK (1 << NODEINFO_BITFIELD_IS_KEY_MANUALLY_VERIFIED_SHIFT)
+
 volatile bool packetFlag = false;
 
 void IRAM_ATTR onPacketReceived() {
@@ -90,6 +97,13 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             }
             // Prepare the payload
             uint8_t payload[256];
+            // set bitfields when it is from me
+            if (entry.header.srcnode == mshcomp->my_nodeinfo.node_id) {
+                entry.data.bitfield |= 1 << BITFIELD_OK_TO_MQTT_SHIFT;  // Set the MQTT upload bit
+                entry.data.bitfield |= 1 << (entry.data.want_response << BITFIELD_WANT_RESPONSE_SHIFT);
+            }
+
+            entry.data.has_bitfield = true;
             size_t payload_len = mshcomp->pb_encode_to_bytes(payload, sizeof(payload), meshtastic_Data_fields, &entry.data);
             // Encrypt the payload if needed
             uint8_t encrypted_payload[256];
@@ -379,6 +393,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
+            // extract the want_response from bitfield
+            decodedtmp.want_response |= decodedtmp.bitfield & BITFIELD_WANT_RESPONSE_MASK;
             ESP_LOGI(TAG, "PortNum: %d  PacketId: %lu  Src: %lu", decodedtmp.portnum, header.packet_id, header.srcnode);
             ESP_LOGI(TAG, "Want ack: %d", header.want_ack ? 1 : 0);
             ESP_LOGI(TAG, "Want Response: %d", decodedtmp.want_response);
@@ -771,13 +787,13 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     entry.header.via_mqtt = 0;   // Not used in this case
     entry.encType = 1;           // AES encryption
     meshtastic_User user_msg = {};
-    entry.data.want_response = exchange;
     memcpy(user_msg.id, nodeinfo.id, sizeof(user_msg.id));
     memcpy(user_msg.short_name, nodeinfo.short_name, sizeof(user_msg.short_name));
     memcpy(user_msg.long_name, nodeinfo.long_name, sizeof(user_msg.long_name));
     memcpy(user_msg.macaddr, nodeinfo.macaddr, sizeof(user_msg.macaddr));
     memcpy(user_msg.public_key.bytes, nodeinfo.public_key, sizeof(user_msg.public_key.bytes));
-    user_msg.public_key.size = 0;  // Public key size is 32 bytes
+    user_msg.public_key.size = 32;  // Public key size is 32 bytes
+    entry.data.bitfield = 0;        // todo check
     bool all_zero = true;
     for (size_t i = 0; i < sizeof(user_msg.public_key.bytes); i++) {
         if (user_msg.public_key.bytes[i] != 0) {
@@ -793,7 +809,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     user_msg.is_licensed = false;
     user_msg.is_unmessagable = false;
     entry.data.portnum = meshtastic_PortNum_NODEINFO_APP;
-    entry.data.want_response = entry.header.want_ack;
+    entry.data.want_response = exchange;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_User_msg, &user_msg);
     entry.key = (uint8_t*)default_l1_key;    // Use default channel key for encryption
     entry.key_len = sizeof(default_l1_key);  // Use default channel key length
@@ -817,6 +833,7 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
     memcpy(entry.data.payload.bytes, text.data(), text.size());
     entry.data.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;  // NodeInfo portnum
     entry.data.want_response = 0;
+    entry.data.bitfield = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
     out_queue.push(entry);
@@ -837,6 +854,7 @@ void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t c
     entry.encType = 1;
     entry.data.portnum = meshtastic_PortNum_POSITION_APP;
     entry.data.want_response = 1;
+    entry.data.bitfield = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
     meshtastic_Position position_msg = {};
@@ -858,6 +876,7 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     entry.header.via_mqtt = 0;
     entry.encType = 1;
     entry.data.portnum = meshtastic_PortNum_POSITION_APP;
+    entry.data.bitfield = 0;
     entry.data.want_response = entry.header.want_ack;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
@@ -894,6 +913,7 @@ void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstn
     entry.encType = 1;  // AES encryption
     entry.data.portnum = meshtastic_PortNum_WAYPOINT_APP;
     entry.data.want_response = entry.header.want_ack;
+    entry.data.bitfield = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
     meshtastic_Waypoint waypoint_msg = {};
@@ -938,7 +958,7 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
     telemetry_msg.variant.device_metrics.has_uptime_seconds = telemetry.uptime_seconds != 0;
     telemetry_msg.variant.device_metrics.has_voltage = telemetry.voltage != 0;
     telemetry_msg.variant.device_metrics.has_channel_utilization = telemetry.channel_utilization != 0;
-
+    entry.data.bitfield = 0;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
     out_queue.push(entry);
 }
@@ -972,7 +992,7 @@ void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telem
     telemetry_msg.variant.environment_metrics.has_barometric_pressure = telemetry.pressure != -1;
     telemetry_msg.variant.environment_metrics.lux = telemetry.lux;
     telemetry_msg.variant.environment_metrics.has_lux = telemetry.lux != -1;
-
+    entry.data.bitfield = 0;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
     out_queue.push(entry);
 }
