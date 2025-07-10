@@ -44,15 +44,16 @@ struct MC_Position {
 };
 
 struct MC_NodeInfo {
-    uint32_t node_id;        // src
-    char id[16];             // Node ID
-    char short_name[5];      // Short name of the node
-    char long_name[40];      // Long name of the node
-    uint8_t hw_model;        // Hardware model
-    uint8_t macaddr[6];      // MAC address (not used in this struct)
-    uint8_t public_key[32];  // Public key (not used in this struct)
-    uint8_t role;            // Role of the node
-    uint32_t last_updated;   // Last updated timestamp
+    uint32_t node_id;         // src
+    char id[16];              // Node ID
+    char short_name[5];       // Short name of the node
+    char long_name[40];       // Long name of the node
+    uint8_t hw_model;         // Hardware model
+    uint8_t macaddr[6];       // MAC address (not used in this struct)
+    uint8_t public_key[32];   // Public key (not used in this struct)
+    uint8_t public_key_size;  // Size of the public key
+    uint8_t role;             // Role of the node
+    uint32_t last_updated;    // Last updated timestamp
 };
 
 struct MC_Waypoint {

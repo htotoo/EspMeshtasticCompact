@@ -42,6 +42,8 @@ MeshtasticCompact::MeshtasticCompact() {
     my_nodeinfo.macaddr[3] = (uint8_t)(mac >> 16);
     my_nodeinfo.macaddr[4] = (uint8_t)(mac >> 8);
     my_nodeinfo.macaddr[5] = (uint8_t)(mac & 0xFF);
+    my_nodeinfo.public_key_size = 0;                                    // Set to 0 if no public key is available
+    memset(my_nodeinfo.public_key, 0, sizeof(my_nodeinfo.public_key));  // Initialize public key to zero
     sprintf(my_nodeinfo.short_name, "MCP");
     snprintf(my_nodeinfo.long_name, sizeof(my_nodeinfo.long_name) - 1, "MeshtasticCompact-%02" PRIx32, my_nodeinfo.node_id);
     router.setMyId(my_nodeinfo.node_id);
@@ -113,9 +115,9 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             bool aesenc = true;
             if (entry.encType == 0) {  // the auto enc method
                 MC_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
-                if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode) {
+                if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode && (dstnode->public_key_size == 16 || dstnode->public_key_size == 32)) {
                     bool all_zero = true;
-                    for (size_t i = 0; i < 32; i++) {
+                    for (size_t i = 0; i < dstnode->public_key_size; i++) {
                         if (dstnode->public_key[i] != 0) {
                             all_zero = false;
                             break;
@@ -447,6 +449,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     memcpy(node_info.long_name, user_msg.long_name, sizeof(node_info.long_name));
                     memcpy(node_info.macaddr, user_msg.macaddr, sizeof(node_info.macaddr));
                     memcpy(node_info.public_key, user_msg.public_key.bytes, sizeof(node_info.public_key));
+                    node_info.public_key_size = user_msg.public_key.size;
                     node_info.role = user_msg.role;
                     node_info.hw_model = user_msg.hw_model;
                     intOnNodeInfo(header, node_info, decodedtmp.want_response);
@@ -796,8 +799,8 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     memcpy(user_msg.long_name, nodeinfo.long_name, sizeof(user_msg.long_name));
     memcpy(user_msg.macaddr, nodeinfo.macaddr, sizeof(user_msg.macaddr));
     memcpy(user_msg.public_key.bytes, nodeinfo.public_key, sizeof(user_msg.public_key.bytes));
-    user_msg.public_key.size = 32;  // Public key size is 32 bytes
-    entry.data.bitfield = 0;        // todo check
+    user_msg.public_key.size = nodeinfo.public_key_size;
+    entry.data.bitfield = 0;  // todo check
     bool all_zero = true;
     for (size_t i = 0; i < sizeof(user_msg.public_key.bytes); i++) {
         if (user_msg.public_key.bytes[i] != 0) {
@@ -806,7 +809,7 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
         }
     }
     if (all_zero) {
-        user_msg.public_key.size = 0;  // Set size to 0 if all bytes are zero
+        user_msg.public_key.size = 0;  // Set size to 0 if all bytes are zero //todo maybe delete
     }
     user_msg.role = (meshtastic_Config_DeviceConfig_Role)nodeinfo.role;
     user_msg.hw_model = (meshtastic_HardwareModel)nodeinfo.hw_model;
@@ -1037,6 +1040,7 @@ void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t n
         nodeinfo.macaddr[i] = (node_id >> (8 * (5 - i))) & 0xFF;
     }
     memset(nodeinfo.public_key, 0, sizeof(nodeinfo.public_key));
+    nodeinfo.public_key_size = 0;  // Set to 0 if no public key is available
 }
 
 void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude, uint32_t speed, uint32_t sats_in_view) {
