@@ -101,9 +101,9 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             if (entry.header.srcnode == mshcomp->my_nodeinfo.node_id) {
                 entry.data.bitfield |= 1 << BITFIELD_OK_TO_MQTT_SHIFT;  // Set the MQTT upload bit
                 entry.data.bitfield |= 1 << (entry.data.want_response << BITFIELD_WANT_RESPONSE_SHIFT);
+                entry.data.has_bitfield = true;
             }
 
-            entry.data.has_bitfield = true;
             size_t payload_len = mshcomp->pb_encode_to_bytes(payload, sizeof(payload), meshtastic_Data_fields, &entry.data);
             // Encrypt the payload if needed
             uint8_t encrypted_payload[256];
@@ -730,6 +730,7 @@ void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery
     entry.data.portnum = meshtastic_PortNum_TRACEROUTE_APP;
     entry.data.want_response = 0;  // this is reply, so no need for response
     entry.data.bitfield = 1;
+    entry.data.has_bitfield = true;
     entry.data.dest = 0;
     entry.data.source = 0;
     entry.data.emoji = 0;
