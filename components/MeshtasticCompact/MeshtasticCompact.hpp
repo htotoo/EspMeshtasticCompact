@@ -322,7 +322,7 @@ class MeshtasticCompact {
    public:
     MeshtasticCompact();
     ~MeshtasticCompact();
-    bool RadioInit();
+    bool RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_config);  // Initializes the radio with the given configuration and pins
 
     // callbacks
     using OnMessageCallback = void (*)(MC_Header& header, MC_TextMessage& message);
@@ -451,8 +451,8 @@ class MeshtasticCompact {
 
     MC_NodeInfo my_nodeinfo;  // My node info. Used in many places. Set it carefully.
 
-    EspHal* hal = new EspHal(9, 11, 10);
-    SX1262 radio = new Module(hal, 8, 14, 12, 13);
+    EspHal* hal;           // = new EspHal(9, 11, 10);
+    PhysicalLayer* radio;  // SX1262 radio = new Module(hal, 8, 14, 12, 13);
 
     const uint8_t default_l1_key[16] =
         {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59,

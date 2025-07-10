@@ -57,9 +57,13 @@ MeshtasticCompact::~MeshtasticCompact() {
     vTaskDelay(100 / portTICK_PERIOD_MS);  // Give some time for tasks to finish
 }
 
-bool MeshtasticCompact::RadioInit() {
+bool MeshtasticCompact::RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_config) {
+    ESP_LOGI(TAG, "RadioInit");
+    hal = new EspHal(radio_pins.sck, radio_pins.miso, radio_pins.mosi);
+    radio = new SX1262(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+
     ESP_LOGI(TAG, "Init");
-    int state = radio.begin(433.125, 250.0, 11, 5, 0x2b, 10, 16, 1.8, false);
+    int state = ((SX1262*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
     if (state != RADIOLIB_ERR_NONE) {
         ESP_LOGI(TAG, "failed, code %d\n", state);
         while (true) {
@@ -67,12 +71,12 @@ bool MeshtasticCompact::RadioInit() {
         }
     }
     ESP_LOGI(TAG, "success!\n");
-    state |= radio.setCurrentLimit(130.0);
-    state |= radio.explicitHeader();
-    state |= radio.setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
-    state |= radio.setDio2AsRfSwitch(false);
-    radio.setDio1Action(onPacketReceived);
-    state |= radio.setRxBoostedGainMode(true);
+    state |= ((SX1262*)radio)->setCurrentLimit(130.0);
+    state |= ((SX1262*)radio)->explicitHeader();
+    state |= ((SX1262*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
+    state |= ((SX1262*)radio)->setDio2AsRfSwitch(false);
+    ((SX1262*)radio)->setDio1Action(onPacketReceived);
+    state |= ((SX1262*)radio)->setRxBoostedGainMode(true);
     if (state != 0) {
         ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
     }
@@ -164,13 +168,13 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             {
                 std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
                 ESP_LOGE(TAG, "Try send packet");
-                int err = mshcomp->radio.transmit(payload, total_len);
+                int err = mshcomp->radio->transmit(payload, total_len);
                 if (err == RADIOLIB_ERR_NONE) {
                     ESP_LOGI(TAG, "Packet sent successfully to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
                 } else {
                     ESP_LOGE(TAG, "Failed to send packet, code %d", err);
                     vTaskDelay(30 / portTICK_PERIOD_MS);
-                    err = mshcomp->radio.transmit(payload, total_len);
+                    err = mshcomp->radio->transmit(payload, total_len);
                     if (err == RADIOLIB_ERR_NONE) {
                         ESP_LOGI(TAG, "Packet sent successfully in 2nd try to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32, entry.header.dstnode, entry.header.packet_id);
                     } else {
@@ -180,7 +184,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             }
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
-        mshcomp->radio.startReceive();
+        mshcomp->radio->startReceive();
         // Restart receiving after sending
         vTaskDelay(350 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
@@ -192,7 +196,7 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
     MeshtasticCompact* mshcomp = static_cast<MeshtasticCompact*>(pvParameters);
     ESP_LOGI(pcTaskGetName(NULL), "Start");
     uint8_t rxData[256];  // Maximum Payload size of SX1261/62/68 is 255
-    mshcomp->radio.startReceive();
+    mshcomp->radio->startReceive();
     while (mshcomp->need_run) {
         if (packetFlag) {
             if (!mshcomp->need_run) break;
@@ -202,13 +206,13 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
             {
                 std::unique_lock<std::mutex> lock(mshcomp->mtx_radio);
                 // ESP_LOGW(TAG, "Packet received, trying to read data");
-                rxLen = mshcomp->radio.getPacketLength();
+                rxLen = mshcomp->radio->getPacketLength();
                 if (rxLen > 255) rxLen = 255;  // Ensure we do not overflow the buffer
-                err = mshcomp->radio.readData(rxData, rxLen);
-                mshcomp->rssi = mshcomp->radio.getRSSI();
-                mshcomp->snr = mshcomp->radio.getSNR();
+                err = mshcomp->radio->readData(rxData, rxLen);
+                mshcomp->rssi = mshcomp->radio->getRSSI();
+                mshcomp->snr = mshcomp->radio->getSNR();
                 vTaskDelay(1 / portTICK_PERIOD_MS);
-                mshcomp->radio.startReceive();
+                mshcomp->radio->startReceive();
             }
             if (err >= 0) {
                 mshcomp->ProcessPacket(rxData, rxLen, mshcomp);

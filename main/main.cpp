@@ -10,10 +10,6 @@
 /*
 TODO list:
  - Add has_data tags to structs
- - Add pin configuration options
- - Add frequency configuration options
- - Add channel configuration options
- - Add LONGFAST / .. options
  - Add multiple module type support
  - Add callback on ANY type of packets
  - Revise send_ack
@@ -54,7 +50,19 @@ void PrintHeaderInfo(MC_Header& header) {
 
 void app_main(void) {
     MeshtasticCompactHelpers::PositionBuilder(meshtasticCompact.my_position, 47.123456f, 18.123456f, 500, 0, 5);
-    meshtasticCompact.RadioInit();
+    LoraConfig lora_config = {
+        .frequency = 433.125,  // default frequency
+        .bandwidth = 250.0,
+        .spreading_factor = 11,
+        .coding_rate = 5,
+        .sync_word = 0x2b,
+        .preamble_length = 16,
+        .output_power = 10,
+        .tcxo_voltage = 1.8,
+        .use_regulator_ldo = false,
+    };  // default LoRa configuration for EU LONGFAST 433
+    Radio_PINS radio_pins = {9, 11, 10, 8, 14, 12, 13};    // Default radio pins for Heltec WSL V3.
+    meshtasticCompact.RadioInit(radio_pins, lora_config);  // Initialize the radio with the specified pins and configuration
 
     meshtasticCompact.setOnMessage([](MC_Header& header, MC_TextMessage& message) {
         ESP_LOGI(TAG, "Received message on channel %d: %s", message.chan, message.text.c_str());
