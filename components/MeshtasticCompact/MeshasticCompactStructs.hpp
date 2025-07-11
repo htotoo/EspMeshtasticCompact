@@ -63,6 +63,10 @@ struct MC_Position {
     uint32_t ground_speed;
     uint32_t sats_in_view;    // Number of satellites in view
     uint8_t location_source;  // Source of the location data (e.g., GPS, network)
+    bool has_latitude_i;      // true if latitude is set
+    bool has_longitude_i;     // true if longitude is set
+    bool has_altitude;        // true if altitude is set
+    bool has_ground_speed;    // true if ground speed is set
 };
 
 struct MC_NodeInfo {

@@ -72,8 +72,8 @@ void app_main(void) {
     meshtasticCompact.setOnPositionMessage([](MC_Header& header, MC_Position& position, bool needReply) {
         ESP_LOGI(TAG, "Received position update:");
         PrintHeaderInfo(header);
-        ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld, Altitude: %ld", position.latitude_i, position.longitude_i, position.altitude);
-        ESP_LOGI(TAG, "Ground Speed: %lu", position.ground_speed);
+        if (position.has_latitude_i && position.has_longitude_i) ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld, Altitude: %ld", position.latitude_i, position.longitude_i, position.altitude);
+        if (position.has_ground_speed) ESP_LOGI(TAG, "Ground Speed: %lu", position.ground_speed);
         ESP_LOGI(TAG, "Satellites in view: %lu", position.sats_in_view);
         ESP_LOGI(TAG, "Location Source: %u", position.location_source);
         if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {

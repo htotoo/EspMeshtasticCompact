@@ -255,7 +255,7 @@ void MeshtasticCompact::intOnMessage(MC_Header& header, MC_TextMessage& message)
 }
 
 void MeshtasticCompact::intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply) {
-    if (want_reply == 0) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
+    if (position.has_latitude_i && position.has_longitude_i) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
     bool needReply = (want_reply == true && !is_auto_full_node && is_send_enabled);
     if (onPositionMessage) {
         onPositionMessage(header, position, needReply);
@@ -434,11 +434,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: protobuf Position
                 meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
-                    if (position_msg.has_latitude_i && position_msg.has_longitude_i) {
-                        MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source};
-                        intOnPositionMessage(header, position, decodedtmp.want_response);
-                    };
-                    ;
+                    MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
+                    intOnPositionMessage(header, position, decodedtmp.want_response);
+
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
