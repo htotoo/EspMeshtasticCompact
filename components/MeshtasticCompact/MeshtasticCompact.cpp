@@ -494,6 +494,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     waypoint.icon = waypoint_msg.icon;
                     waypoint.expire = waypoint_msg.expire;
                     waypoint.id = waypoint_msg.id;
+                    waypoint.has_latitude_i = waypoint_msg.has_latitude_i;
+                    waypoint.has_longitude_i = waypoint_msg.has_longitude_i;
                     intOnWaypointMessage(header, waypoint);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Waypoint");
@@ -551,6 +553,10 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                             device_metrics.uptime_seconds = telemetry_msg.variant.device_metrics.uptime_seconds;
                             device_metrics.voltage = telemetry_msg.variant.device_metrics.voltage;
                             device_metrics.channel_utilization = telemetry_msg.variant.device_metrics.channel_utilization;
+                            device_metrics.has_battery_level = telemetry_msg.variant.device_metrics.has_battery_level;
+                            device_metrics.has_uptime_seconds = telemetry_msg.variant.device_metrics.has_uptime_seconds;
+                            device_metrics.has_voltage = telemetry_msg.variant.device_metrics.has_voltage;
+                            device_metrics.has_channel_utilization = telemetry_msg.variant.device_metrics.has_channel_utilization;
                             intOnTelemetryDevice(header, device_metrics);
                             break;
                         case meshtastic_Telemetry_environment_metrics_tag:
@@ -559,6 +565,10 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                             environment_metrics.humidity = telemetry_msg.variant.environment_metrics.relative_humidity;
                             environment_metrics.pressure = telemetry_msg.variant.environment_metrics.barometric_pressure;
                             environment_metrics.lux = telemetry_msg.variant.environment_metrics.lux;
+                            environment_metrics.has_temperature = telemetry_msg.variant.environment_metrics.has_temperature;
+                            environment_metrics.has_humidity = telemetry_msg.variant.environment_metrics.has_relative_humidity;
+                            environment_metrics.has_pressure = telemetry_msg.variant.environment_metrics.has_barometric_pressure;
+                            environment_metrics.has_lux = telemetry_msg.variant.environment_metrics.has_lux;
                             intOnTelemetryEnvironment(header, environment_metrics);
                             break;
                         case meshtastic_Telemetry_air_quality_metrics_tag:
@@ -966,10 +976,10 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
     telemetry_msg.variant.device_metrics.uptime_seconds = telemetry.uptime_seconds;
     telemetry_msg.variant.device_metrics.voltage = telemetry.voltage;
     telemetry_msg.variant.device_metrics.channel_utilization = telemetry.channel_utilization;
-    telemetry_msg.variant.device_metrics.has_battery_level = telemetry.battery_level != 0;
-    telemetry_msg.variant.device_metrics.has_uptime_seconds = telemetry.uptime_seconds != 0;
-    telemetry_msg.variant.device_metrics.has_voltage = telemetry.voltage != 0;
-    telemetry_msg.variant.device_metrics.has_channel_utilization = telemetry.channel_utilization != 0;
+    telemetry_msg.variant.device_metrics.has_battery_level = telemetry.has_battery_level;
+    telemetry_msg.variant.device_metrics.has_uptime_seconds = telemetry.has_uptime_seconds;
+    telemetry_msg.variant.device_metrics.has_voltage = telemetry.has_voltage;
+    telemetry_msg.variant.device_metrics.has_channel_utilization = telemetry.has_channel_utilization;
     entry.data.bitfield = 0;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
     out_queue.push(entry);
@@ -997,13 +1007,13 @@ void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telem
     telemetry_msg.time = (uint32_t)time(NULL);
     telemetry_msg.which_variant = meshtastic_Telemetry_environment_metrics_tag;
     telemetry_msg.variant.environment_metrics.temperature = telemetry.temperature;
-    telemetry_msg.variant.environment_metrics.has_temperature = telemetry.temperature != -10000;
+    telemetry_msg.variant.environment_metrics.has_temperature = telemetry.has_temperature;
     telemetry_msg.variant.environment_metrics.relative_humidity = telemetry.humidity;
-    telemetry_msg.variant.environment_metrics.has_relative_humidity = telemetry.humidity != -1;
+    telemetry_msg.variant.environment_metrics.has_relative_humidity = telemetry.has_humidity;
     telemetry_msg.variant.environment_metrics.barometric_pressure = telemetry.pressure;
-    telemetry_msg.variant.environment_metrics.has_barometric_pressure = telemetry.pressure != -1;
+    telemetry_msg.variant.environment_metrics.has_barometric_pressure = telemetry.has_pressure;
     telemetry_msg.variant.environment_metrics.lux = telemetry.lux;
-    telemetry_msg.variant.environment_metrics.has_lux = telemetry.lux != -1;
+    telemetry_msg.variant.environment_metrics.has_lux = telemetry.has_lux;
     entry.data.bitfield = 0;
     entry.data.payload.size = pb_encode_to_bytes((uint8_t*)&entry.data.payload.bytes, sizeof(entry.data.payload.bytes), &meshtastic_Telemetry_msg, &telemetry_msg);
     out_queue.push(entry);

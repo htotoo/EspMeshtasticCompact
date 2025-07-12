@@ -50,6 +50,14 @@ struct MC_Header {
     uint32_t reply_id;
 };
 
+struct MC_OutQueueEntry {
+    MC_Header header;
+    meshtastic_Data data;
+    uint8_t encType = 0;  // 0 = auto, 1 = aes, 2 = key
+    uint8_t* key;
+    size_t key_len;  // Length of the key in bytes
+};
+
 struct MC_TextMessage {
     std::string text;
     uint8_t chan;
@@ -63,10 +71,10 @@ struct MC_Position {
     uint32_t ground_speed;
     uint32_t sats_in_view;    // Number of satellites in view
     uint8_t location_source;  // Source of the location data (e.g., GPS, network)
-    bool has_latitude_i;      // true if latitude is set
-    bool has_longitude_i;     // true if longitude is set
-    bool has_altitude;        // true if altitude is set
-    bool has_ground_speed;    // true if ground speed is set
+    bool has_latitude_i;
+    bool has_longitude_i;
+    bool has_altitude;
+    bool has_ground_speed;
 };
 
 struct MC_NodeInfo {
@@ -90,14 +98,8 @@ struct MC_Waypoint {
     int32_t longitude_i;    // Longitude in degrees
     uint32_t icon;          // Icon representing the waypoint
     uint32_t expire;        // Expiration time of the waypoint in unix timestamp format
-};
-
-struct MC_OutQueueEntry {
-    MC_Header header;
-    meshtastic_Data data;
-    uint8_t encType = 0;  // 0 = auto, 1 = aes, 2 = key
-    uint8_t* key;
-    size_t key_len;  // Length of the key in bytes
+    bool has_latitude_i;
+    bool has_longitude_i;
 };
 
 struct MC_Telemetry_Device {
@@ -105,6 +107,10 @@ struct MC_Telemetry_Device {
     uint32_t uptime_seconds;
     float voltage;
     float channel_utilization;
+    bool has_battery_level;
+    bool has_uptime_seconds;
+    bool has_voltage;
+    bool has_channel_utilization;
 };
 
 struct MC_Telemetry_Environment {
@@ -112,6 +118,10 @@ struct MC_Telemetry_Environment {
     float humidity;
     float pressure;
     float lux;
+    bool has_temperature;
+    bool has_humidity;
+    bool has_pressure;
+    bool has_lux;
 };
 
 struct MC_RouteDiscovery {
