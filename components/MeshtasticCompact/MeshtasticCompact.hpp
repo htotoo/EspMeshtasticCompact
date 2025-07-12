@@ -332,6 +332,7 @@ class MeshtasticCompact {
     using OnTelemetryDeviceCallback = void (*)(MC_Header& header, MC_Telemetry_Device& telemetry);
     using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
     using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
+    using OnRaw = void (*)(const uint8_t* data, size_t len);
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
@@ -339,7 +340,7 @@ class MeshtasticCompact {
     void setOnTelemetryDevice(OnTelemetryDeviceCallback cb) { onTelemetryDevice = cb; }
     void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
     void setOnTraceroute(OnTracerouteCallback cb) { onTraceroute = cb; }
-
+    void setOnRaw(OnRaw cb) { onRaw = cb; }
     /**
      * @brief Get the Last Signal Strengh Data
      *
@@ -477,6 +478,7 @@ class MeshtasticCompact {
     OnTelemetryDeviceCallback onTelemetryDevice = nullptr;
     OnTelemetryEnvironmentCallback onTelemetryEnvironment = nullptr;
     OnTracerouteCallback onTraceroute = nullptr;
+    OnRaw onRaw = nullptr;
 };
 
 /**

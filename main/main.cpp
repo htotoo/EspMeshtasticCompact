@@ -11,7 +11,6 @@
 TODO list:
  - Add has_data tags to structs
  - Add multiple module type support
- - Add callback on ANY type of packets
  - Revise send_ack
 */
 
@@ -57,7 +56,7 @@ void app_main(void) {
         .coding_rate = 5,
         .sync_word = 0x2b,
         .preamble_length = 16,
-        .output_power = 10,
+        .output_power = 22,
         .tcxo_voltage = 1.8,
         .use_regulator_ldo = false,
     };  // default LoRa configuration for EU LONGFAST 433
@@ -111,7 +110,7 @@ void app_main(void) {
         PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Battery Voltage: %.2f V", telemetry.voltage);
         ESP_LOGI(TAG, "Battery Percent: %lu", telemetry.battery_level);
-        ESP_LOGI(TAG, "channel_utilization: %.2f °C", telemetry.channel_utilization);
+        ESP_LOGI(TAG, "channel_utilization: %.2f ", telemetry.channel_utilization);
         ESP_LOGI(TAG, "Uptime: %lu seconds", telemetry.uptime_seconds);
     });
     meshtasticCompact.setOnTelemetryEnvironment([](MC_Header& header, MC_Telemetry_Environment& telemetry) {

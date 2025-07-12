@@ -215,6 +215,9 @@ void MeshtasticCompact::task_listen(void* pvParameters) {
                 mshcomp->radio->startReceive();
             }
             if (err >= 0) {
+                if (mshcomp->onRaw) {
+                    mshcomp->onRaw(rxData, rxLen);
+                }
                 mshcomp->ProcessPacket(rxData, rxLen, mshcomp);
             }
 
