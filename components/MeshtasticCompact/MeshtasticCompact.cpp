@@ -1066,3 +1066,26 @@ void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float lati
     position.sats_in_view = sats_in_view;
     position.location_source = 0;
 }
+
+void MeshtasticCompactHelpers::TelemetryDeviceBuilder(MC_Telemetry_Device& telemetry, uint32_t uptime_seconds, float voltage, float battery_level, float channel_utilization) {
+    telemetry.uptime_seconds = uptime_seconds;
+    telemetry.voltage = voltage;
+    telemetry.battery_level = battery_level;
+    telemetry.channel_utilization = channel_utilization;
+    telemetry.has_uptime_seconds = (uptime_seconds != 0);
+    telemetry.has_voltage = (voltage >= 0.0f);
+    telemetry.has_battery_level = (battery_level >= 0.0f);
+    telemetry.has_channel_utilization = (channel_utilization >= 0.0f);
+}
+
+void MeshtasticCompactHelpers::TelemetryEnvironmentBuilder(MC_Telemetry_Environment& telemetry, float temperature, float humidity, float pressure, float lux) {
+    telemetry.temperature = temperature;
+    telemetry.humidity = humidity;
+    telemetry.pressure = pressure;
+    telemetry.lux = lux;
+    telemetry.has_temperature = (temperature > -10000.0f);
+    telemetry.has_humidity = (humidity >= 0.0f);
+    telemetry.has_pressure = (pressure >= 0.0f);
+    telemetry.has_lux = (lux >= 0.0f);
+}
+#pragma endregion
