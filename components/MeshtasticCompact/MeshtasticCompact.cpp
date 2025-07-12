@@ -65,7 +65,7 @@ bool MeshtasticCompact::RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_confi
     ESP_LOGI(TAG, "Init");
     int state = ((SX1262*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
     if (state != RADIOLIB_ERR_NONE) {
-        ESP_LOGI(TAG, "failed, code %d\n", state);
+        ESP_LOGE(TAG, "failed, code %d\n", state);
         while (true) {
             hal->delay(1000);
         }
@@ -78,7 +78,8 @@ bool MeshtasticCompact::RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_confi
     ((SX1262*)radio)->setDio1Action(onPacketReceived);
     state |= ((SX1262*)radio)->setRxBoostedGainMode(true);
     if (state != 0) {
-        ESP_LOGI(TAG, "Radio init failed, code %d\n", state);
+        ESP_LOGE(TAG, "Radio init failed, code %d\n", state);
+        return false;
     }
     RadioListen();    // Start listening for packets
     RadioSendInit();  // Start the send task
@@ -401,7 +402,6 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
         header.via_mqtt = !!(packet_flags & PACKET_FLAGS_VIA_MQTT_MASK);
         header.hop_start = (packet_flags & PACKET_FLAGS_HOP_START_MASK) >> PACKET_FLAGS_HOP_START_SHIFT;
 
-        // ESP_LOGI(TAG, "Received packet from node 0x%08" PRIx32 " to node 0x%08" PRIx32 ", ID: 0x%08" PRIx32 ", Hop Limit: %d, Hop Start: %d, Want Ack: %d, Via MQTT: %d, RSSI: %.2f dBm, SNR: %.2f dB, Chan: %u", header.srcnode, header.dstnode, header.packet_id, header.hop_limit, header.hop_start, header.want_ack, header.via_mqtt, header.rssi, header.snr, header.chan_hash);
         meshtastic_Data decodedtmp;
         int16_t ret = try_decode_root_packet(&data[16], len - 16, &meshtastic_Data_msg, &decodedtmp, sizeof(decodedtmp), header);
         if (ret >= 0) {
@@ -738,7 +738,7 @@ void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery
     entry.header.srcnode = header.srcnode;
     entry.header.packet_id = header.packet_id;
     entry.header.hop_limit = header.hop_limit;
-    entry.header.want_ack = 1;
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = header.hop_start;
     entry.header.chan_hash = header.chan_hash;
@@ -862,13 +862,13 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
 }
 
 void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan, uint32_t sender_node_id) {
-    if (!is_send_enabled) return;
+    if (!is_send_enabled) return;  // todo check if this works or deletes the position
     MC_OutQueueEntry entry;
     entry.header.dstnode = dest_node_id;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
     entry.header.hop_limit = send_hop_limit;
-    entry.header.want_ack = 1;
+    entry.header.want_ack = 0;
     entry.header.via_mqtt = false;
     entry.header.hop_start = send_hop_limit;
     entry.header.chan_hash = chan;
@@ -899,7 +899,7 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     entry.encType = 1;
     entry.data.portnum = meshtastic_PortNum_POSITION_APP;
     entry.data.bitfield = 0;
-    entry.data.want_response = entry.header.want_ack;
+    entry.data.want_response = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
     meshtastic_Position position_msg = {};
@@ -934,7 +934,7 @@ void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstn
     entry.header.via_mqtt = 0;
     entry.encType = 1;  // AES encryption
     entry.data.portnum = meshtastic_PortNum_WAYPOINT_APP;
-    entry.data.want_response = entry.header.want_ack;
+    entry.data.want_response = 0;
     entry.data.bitfield = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);  // Use default channel key for encryption
@@ -965,7 +965,7 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
     entry.header.via_mqtt = 0;
     entry.encType = 1;
     entry.data.portnum = meshtastic_PortNum_TELEMETRY_APP;
-    entry.data.want_response = entry.header.want_ack;
+    entry.data.want_response = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);
     meshtastic_Telemetry telemetry_msg = {};
@@ -999,7 +999,7 @@ void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telem
     entry.header.via_mqtt = 0;
     entry.encType = 1;
     entry.data.portnum = meshtastic_PortNum_TELEMETRY_APP;
-    entry.data.want_response = entry.header.want_ack;
+    entry.data.want_response = 0;
     entry.key = (uint8_t*)default_l1_key;
     entry.key_len = sizeof(default_l1_key);
     meshtastic_Telemetry telemetry_msg = {};
