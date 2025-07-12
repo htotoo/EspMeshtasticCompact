@@ -1025,7 +1025,7 @@ inline uint8_t MeshtasticCompact::getLastByteOfNodeNum(uint32_t num) {
 
 #pragma endregion
 
-#pragma region Helpers
+#pragma region MeshtasticCompactHelpers
 
 void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name) {
     nodeinfo.node_id = node_id;
@@ -1087,5 +1087,19 @@ void MeshtasticCompactHelpers::TelemetryEnvironmentBuilder(MC_Telemetry_Environm
     telemetry.has_humidity = (humidity >= 0.0f);
     telemetry.has_pressure = (pressure >= 0.0f);
     telemetry.has_lux = (lux >= 0.0f);
+}
+
+void MeshtasticCompactHelpers::WaypointBuilder(MC_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire, uint32_t icon) {
+    waypoint.latitude_i = static_cast<int32_t>(latitude * 10e6);
+    waypoint.longitude_i = static_cast<int32_t>(longitude * 10e6);
+    strncpy(waypoint.name, name.c_str(), sizeof(waypoint.name) - 1);
+    waypoint.name[sizeof(waypoint.name) - 1] = '\0';
+    strncpy(waypoint.description, description.c_str(), sizeof(waypoint.description) - 1);
+    waypoint.description[sizeof(waypoint.description) - 1] = '\0';
+    waypoint.icon = icon;
+    waypoint.expire = expire;
+    waypoint.id = id;
+    waypoint.has_latitude_i = waypoint.latitude_i != 0;
+    waypoint.has_longitude_i = waypoint.longitude_i != 0;
 }
 #pragma endregion

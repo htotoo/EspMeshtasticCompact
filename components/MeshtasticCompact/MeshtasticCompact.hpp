@@ -491,6 +491,7 @@ class MeshtasticCompactHelpers {
     static void PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude = 0, uint32_t speed = 0, uint32_t sats_in_view = 0);
     static void TelemetryDeviceBuilder(MC_Telemetry_Device& telemetry, uint32_t uptime_seconds = 0, float voltage = 0.0f, float battery_level = -1.0f, float channel_utilization = -1.0f);
     static void TelemetryEnvironmentBuilder(MC_Telemetry_Environment& telemetry, float temperature = -10000.0f, float humidity = -1.0f, float pressure = -1.0f, float lux = -1.0f);
+    static void WaypointBuilder(MC_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire = 1, uint32_t icon = 0);
 };
 
 #endif  // MESHTASTIC_COMPACT_H
