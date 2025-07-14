@@ -56,7 +56,17 @@ MeshtasticCompact::~MeshtasticCompact() {
     need_run = false;  // Stop the tasks
     packetFlag = true;
     out_queue.stop_wait();                 // Notify any waiting pop() to unblock immediately
-    vTaskDelay(100 / portTICK_PERIOD_MS);  // Give some time for tasks to finish
+    vTaskDelay(150 / portTICK_PERIOD_MS);  // Give some time for tasks to finish
+    if (radio) {
+        radio->standby();
+        delete radio;  // Delete the radio instance
+        radio = nullptr;
+    }
+    if (hal) {
+        hal->term();
+        delete (EspHal*)hal;
+        hal = nullptr;
+    }
 }
 
 bool MeshtasticCompact::RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_config) {

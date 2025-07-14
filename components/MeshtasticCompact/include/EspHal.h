@@ -124,6 +124,8 @@ class EspHal : public RadioLibHal {
           spiMOSI(mosi) {
     }
 
+    virtual ~EspHal() {}
+
     void init() override {
         // we only need to init the SPI here
         spiBegin();
