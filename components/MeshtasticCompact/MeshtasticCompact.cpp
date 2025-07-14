@@ -25,6 +25,8 @@
 
 volatile bool packetFlag = false;
 
+static_assert(CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 8000, "Main task stack size must be at least 8000 bytes!");
+
 void IRAM_ATTR onPacketReceived() {
     packetFlag = true;
 }
