@@ -34,7 +34,21 @@ extern "C" {
 void app_main();
 }
 
-void PrintHeaderInfo(MC_Header& header, MeshtasticCompact& meshtasticCompact) {
+Radio_PINS radio_pins = {9, 11, 10, 8, 14, 12, 13};  // Default radio pins for Heltec WSL V3.
+LoraConfig lora_config = {
+    .frequency = 433.125,  // default frequency
+    .bandwidth = 250.0,
+    .spreading_factor = 11,
+    .coding_rate = 5,
+    .sync_word = 0x2b,
+    .preamble_length = 16,
+    .output_power = 22,
+    .tcxo_voltage = 1.8,
+    .use_regulator_ldo = false,
+};  // default LoRa configuration for EU LONGFAST 433
+MeshtasticCompact meshtasticCompact;
+
+void PrintHeaderInfo(MC_Header& header) {
     ESP_LOGW(TAG, "Source Node ID: 0x%08" PRIx32 ", Destination Node ID: 0x%08" PRIx32 ", Hop Limit: %d", header.srcnode, header.dstnode, header.hop_limit);
     ESP_LOGI(TAG, "Last signal data - RSSI: %.2f dBm, SNR: %.2f dB. WantAck: %d", header.rssi, header.snr, header.want_ack ? 1 : 0);
     auto sender = meshtasticCompact.nodeinfo_db.get(header.srcnode);
@@ -45,43 +59,29 @@ void PrintHeaderInfo(MC_Header& header, MeshtasticCompact& meshtasticCompact) {
     }
 }
 
-void DestructTest() {
-    Radio_PINS radio_pins = {9, 11, 10, 8, 14, 12, 13};  // Default radio pins for Heltec WSL V3.
-
-    LoraConfig lora_config = {
-        .frequency = 433.125,  // default frequency
-        .bandwidth = 250.0,
-        .spreading_factor = 11,
-        .coding_rate = 5,
-        .sync_word = 0x2b,
-        .preamble_length = 16,
-        .output_power = 22,
-        .tcxo_voltage = 1.8,
-        .use_regulator_ldo = false,
-    };  // default LoRa configuration for EU LONGFAST 433
-    MeshtasticCompact meshtasticCompact;
+void app_main(void) {
     MeshtasticCompactHelpers::PositionBuilder(meshtasticCompact.my_position, 47.123456f, 18.123456f, 500, 0, 5);
-    meshtasticCompact.RadioInit(radio_pins, lora_config);  // Initialize the radio with the specified pins and configuration
+    meshtasticCompact.RadioInit(RadioType::SX1262, radio_pins, lora_config);  // Initialize the radio with the specified pins and configuration
     ESP_LOGI(TAG, "Radio initialized successfully");
     meshtasticCompact.setOnMessage([](MC_Header& header, MC_TextMessage& message) {
         ESP_LOGI(TAG, "Received message on channel %d: %s", message.chan, message.text.c_str());
         ESP_LOGI(TAG, "Msg type %d", message.type);
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
     });
     meshtasticCompact.setOnPositionMessage([](MC_Header& header, MC_Position& position, bool needReply) {
         ESP_LOGI(TAG, "Received position update:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         if (position.has_latitude_i && position.has_longitude_i) ESP_LOGI(TAG, "Latitude: %ld, Longitude: %ld, Altitude: %ld", position.latitude_i, position.longitude_i, position.altitude);
         if (position.has_ground_speed) ESP_LOGI(TAG, "Ground Speed: %lu", position.ground_speed);
         ESP_LOGI(TAG, "Satellites in view: %lu", position.sats_in_view);
         ESP_LOGI(TAG, "Location Source: %u", position.location_source);
-        /*if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
+        if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
             meshtasticCompact.SendMyPosition();  // Reply to the sender
-        }*/
+        }
     });
     meshtasticCompact.setOnNodeInfoMessage([](MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply) {
         ESP_LOGI(TAG, "Received node info:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Node ID: %s", nodeinfo.id);
         ESP_LOGI(TAG, "Short Name: %s", nodeinfo.short_name);
         ESP_LOGI(TAG, "Long Name: %s", nodeinfo.long_name);
@@ -92,13 +92,13 @@ void DestructTest() {
         // ESP_LOGI(TAG, "Public Key: %s", nodeinfo.public_key);
         ESP_LOGI(TAG, "Role: %u", nodeinfo.role);
 
-        /*if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
+        if (needReply && header.dstnode == meshtasticCompact.getMyNodeInfo()->node_id) {
             meshtasticCompact.SendMyNodeInfo(header.srcnode);  // Reply to the sender
-        }*/
+        }
     });
     meshtasticCompact.setOnWaypointMessage([](MC_Header& header, MC_Waypoint& waypoint) {
         ESP_LOGI(TAG, "Received waypoint:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Waypoint ID: %lu", waypoint.id);
         ESP_LOGI(TAG, "Name: %s", waypoint.name);
         ESP_LOGI(TAG, "Description: %s", waypoint.description);
@@ -107,7 +107,7 @@ void DestructTest() {
     });
     meshtasticCompact.setOnTelemetryDevice([](MC_Header& header, MC_Telemetry_Device& telemetry) {
         ESP_LOGI(TAG, "Received telemetry device data:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Battery Voltage: %.2f V", telemetry.voltage);
         ESP_LOGI(TAG, "Battery Percent: %lu", telemetry.battery_level);
         ESP_LOGI(TAG, "channel_utilization: %.2f ", telemetry.channel_utilization);
@@ -115,7 +115,7 @@ void DestructTest() {
     });
     meshtasticCompact.setOnTelemetryEnvironment([](MC_Header& header, MC_Telemetry_Environment& telemetry) {
         ESP_LOGI(TAG, "Received telemetry environment data:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Temperature: %.2f °C", telemetry.temperature);
         ESP_LOGI(TAG, "Humidity: %.2f %%", telemetry.humidity);
         ESP_LOGI(TAG, "Pressure: %.2f hPa", telemetry.pressure);
@@ -123,7 +123,7 @@ void DestructTest() {
     });
     meshtasticCompact.setOnTraceroute([](MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply) {
         ESP_LOGI(TAG, "Received traceroute packet:");
-        // PrintHeaderInfo(header);
+        PrintHeaderInfo(header);
         ESP_LOGI(TAG, "Hop Limit: %d, Hop Start: %d", header.hop_limit, header.hop_start);
         ESP_LOGI(TAG, "Route Count: %zu", route.route_count);
         for (int i = 0; i < route.route_count; ++i) {
@@ -145,12 +145,8 @@ void DestructTest() {
     });
     ESP_LOGI(TAG, "Setup done");
     meshtasticCompact.SendMyNodeInfo(0xffffffff, true);
-    vTaskDelay(150000 / portTICK_PERIOD_MS);
-}
-
-void app_main(void) {
     while (1) {
-        DestructTest();
-        ESP_LOGE(TAG, "Restarting ...");
+        meshtasticCompact.SendMyNodeInfo();
+        vTaskDelay(pdMS_TO_TICKS(90000));  // Send node info every 90 seconds
     }
 }

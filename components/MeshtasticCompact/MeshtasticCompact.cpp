@@ -69,30 +69,89 @@ MeshtasticCompact::~MeshtasticCompact() {
     }
 }
 
-bool MeshtasticCompact::RadioInit(Radio_PINS& radio_pins, LoraConfig& lora_config) {
+bool MeshtasticCompact::RadioInit(RadioType radio_type, Radio_PINS& radio_pins, LoraConfig& lora_config) {
     ESP_LOGI(TAG, "RadioInit");
     hal = new EspHal(radio_pins.sck, radio_pins.miso, radio_pins.mosi);
-    radio = new SX1262(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+    int state = RADIOLIB_ERR_NONE;
+    switch (radio_type) {
+        case RadioType::SX1262:
+            ESP_LOGI(TAG, "Using SX1262 radio");
+            radio = new SX1262(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+            state = ((SX1262*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
+            break;
+        case RadioType::SX1261:
+            ESP_LOGI(TAG, "Using SX1261 radio");
+            radio = new SX1261(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+            state = ((SX1261*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
+            break;
+        case RadioType::SX1268:
+            ESP_LOGI(TAG, "Using SX1268 radio");
+            radio = new SX1268(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+            state = ((SX1268*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
+            break;
+        case RadioType::SX1276:
+            ESP_LOGI(TAG, "Using SX1276 radio");
+            radio = new SX1276(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+            state = ((SX1276*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, 5);
+            break;
+        default:
+            ESP_LOGE(TAG, "Unsupported radio type, let's try: SX1262");
+            radio = new SX1262(new Module(hal, radio_pins.cs, radio_pins.irq, radio_pins.rst, radio_pins.gpio));
+            state = ((SX1262*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
+            return false;
+    }
 
-    ESP_LOGI(TAG, "Init");
-    int state = ((SX1262*)radio)->begin(lora_config.frequency, lora_config.bandwidth, lora_config.spreading_factor, lora_config.coding_rate, lora_config.sync_word, lora_config.output_power, lora_config.preamble_length, lora_config.tcxo_voltage, lora_config.use_regulator_ldo);
     if (state != RADIOLIB_ERR_NONE) {
         ESP_LOGE(TAG, "failed, code %d\n", state);
-        while (true) {
-            hal->delay(1000);
-        }
+        delete hal;
+        delete radio;
+        hal = nullptr;
+        radio = nullptr;
+        return false;
     }
-    ESP_LOGI(TAG, "success!\n");
-    state |= ((SX1262*)radio)->setCurrentLimit(130.0);
-    state |= ((SX1262*)radio)->explicitHeader();
-    state |= ((SX1262*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
-    state |= ((SX1262*)radio)->setDio2AsRfSwitch(false);
-    ((SX1262*)radio)->setDio1Action(onPacketReceived);
-    state |= ((SX1262*)radio)->setRxBoostedGainMode(true);
+
+    // todo do it less ugly.
+    switch (radio_type) {
+        case RadioType::SX1261:
+            state |= ((SX1261*)radio)->setCurrentLimit(130.0);
+            state |= ((SX1261*)radio)->explicitHeader();
+            state |= ((SX1261*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
+            state |= ((SX1261*)radio)->setDio2AsRfSwitch(false);
+            ((SX1261*)radio)->setDio1Action(onPacketReceived);
+            state |= ((SX1261*)radio)->setRxBoostedGainMode(true);
+            break;
+        case RadioType::SX1268:
+            state |= ((SX1268*)radio)->setCurrentLimit(130.0);
+            state |= ((SX1268*)radio)->explicitHeader();
+            state |= ((SX1268*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
+            state |= ((SX1268*)radio)->setDio2AsRfSwitch(false);
+            ((SX1268*)radio)->setDio1Action(onPacketReceived);
+            state |= ((SX1268*)radio)->setRxBoostedGainMode(true);
+            break;
+        case RadioType::SX1276:
+            // todo check
+            state |= ((SX1276*)radio)->setCurrentLimit(130.0);
+            state |= ((SX1276*)radio)->explicitHeader();
+            state |= ((SX1276*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
+            // state |= ((SX1276*)radio)->setDio2AsRfSwitch(false);
+            ((SX1276*)radio)->setDio1Action(onPacketReceived, 1);
+            // state |= ((SX1276*)radio)->setRxBoostedGainMode(true);
+            break;
+        default:
+        case RadioType::SX1262:
+            state |= ((SX1262*)radio)->setCurrentLimit(130.0);
+            state |= ((SX1262*)radio)->explicitHeader();
+            state |= ((SX1262*)radio)->setCRC(RADIOLIB_SX126X_LORA_CRC_ON);
+            state |= ((SX1262*)radio)->setDio2AsRfSwitch(false);
+            ((SX1262*)radio)->setDio1Action(onPacketReceived);
+            state |= ((SX1262*)radio)->setRxBoostedGainMode(true);
+            break;
+    };
     if (state != 0) {
         ESP_LOGE(TAG, "Radio init failed, code %d\n", state);
         return false;
     }
+
     RadioListen();    // Start listening for packets
     RadioSendInit();  // Start the send task
     return true;
@@ -1039,7 +1098,7 @@ inline uint8_t MeshtasticCompact::getLastByteOfNodeNum(uint32_t num) {
 
 #pragma region MeshtasticCompactHelpers
 
-void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name) {
+void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model) {
     nodeinfo.node_id = node_id;
     if (long_name.empty()) {
         char hex_part[7];
@@ -1068,6 +1127,7 @@ void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t n
     }
     memset(nodeinfo.public_key, 0, sizeof(nodeinfo.public_key));
     nodeinfo.public_key_size = 0;  // Set to 0 if no public key is available
+    nodeinfo.hw_model = hw_model;  // Set hardware model
 }
 
 void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude, uint32_t speed, uint32_t sats_in_view) {

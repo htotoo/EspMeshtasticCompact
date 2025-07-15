@@ -4,6 +4,13 @@
 #include <stdint.h>
 #include "meshtastic/mesh.pb.h"
 
+enum class RadioType {
+    SX1262,
+    SX1261,
+    SX1268,
+    SX1276
+};
+
 struct Radio_PINS {
     uint8_t sck;
     uint8_t miso;
