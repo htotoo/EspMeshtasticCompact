@@ -2,15 +2,6 @@ version: "0.0.1"
 description: "ESP32S3 Meshtastic library"
 tags:
   - "meshtastic"
-  - "esp32s3"
-  - "wireless"
-  - "mesh network"
-  - "LoRa"
-  - "IoT"
-  - "communication"
-  - "radio"
-  - "embedded"
-  - "networking"
 files:
   use_gitignore: true
 repository: "https://github.com/htotoo/EspMeshtasticCompact"
@@ -20,4 +11,5 @@ dependencies:
   idf:
     version: ">=5.1.0"
   jgromes/radiolib:
+
     version: ">=7.2.0"
