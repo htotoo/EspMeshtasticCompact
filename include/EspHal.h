@@ -117,11 +117,12 @@ uint32_t spiFrequencyToClockDiv(uint32_t freq) {
 class EspHal : public RadioLibHal {
    public:
     // default constructor - initializes the base HAL and any needed private members
-    EspHal(int8_t sck, int8_t miso, int8_t mosi)
+    EspHal(int8_t sck, int8_t miso, int8_t mosi, int8_t nss = 8)
         : RadioLibHal(INPUT, OUTPUT, LOW, HIGH, RISING, FALLING),
           spiSCK(sck),
           spiMISO(miso),
-          spiMOSI(mosi) {
+          spiMOSI(mosi),
+          spiNss(nss) {
     }
 
     virtual ~EspHal() {}
@@ -270,7 +271,7 @@ class EspHal : public RadioLibHal {
         spi_device_interface_config_t devcfg = {
             .mode = 0,
             .clock_speed_hz = 9000000,
-            .spics_io_num = CONFIG_NSS_GPIO,
+            .spics_io_num = spiNss,
             .flags = 0,
             .queue_size = 7,
             .pre_cb = NULL};
@@ -319,6 +320,7 @@ class EspHal : public RadioLibHal {
     int8_t spiSCK;
     int8_t spiMISO;
     int8_t spiMOSI;
+    int8_t spiNss;
     spi_device_handle_t SpiHandle;
 };
 #pragma GCC diagnostic pop

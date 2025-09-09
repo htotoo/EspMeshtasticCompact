@@ -71,7 +71,7 @@ MeshtasticCompact::~MeshtasticCompact() {
 
 bool MeshtasticCompact::RadioInit(RadioType radio_type, Radio_PINS& radio_pins, LoraConfig& lora_config) {
     ESP_LOGI(TAG, "RadioInit");
-    hal = new EspHal(radio_pins.sck, radio_pins.miso, radio_pins.mosi);
+    hal = new EspHal(radio_pins.sck, radio_pins.miso, radio_pins.mosi, radio_pins.cs);
     int state = RADIOLIB_ERR_NONE;
     switch (radio_type) {
         case RadioType::SX1262:
