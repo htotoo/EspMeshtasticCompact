@@ -397,6 +397,8 @@ class MeshtasticCompact {
         return &my_nodeinfo;
     }
 
+    void set_ok_to_mqtt(bool ok) { ok_to_mqtt = ok; }  // if true, sets the flag in the header
+
     // packet senders
     void SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff, bool exchange = false);
     void SendMyNodeInfo(uint32_t dstnode = 0xffffffff, bool exchange = false) {
@@ -449,6 +451,8 @@ class MeshtasticCompact {
     uint8_t send_hop_limit = 7;       // default hop limit for sending packets
     bool is_auto_full_node = true;    // if true, we automatically send ack, traceroute reply, and position reply when needed
     bool is_in_stealth_mode = false;  // if true, we don't respond to traceroute even in auto full node mode! harder to find us. We even don't send ack.
+
+    bool ok_to_mqtt = true;  // set or don't set the flag.
 
     MC_NodeInfo my_nodeinfo;  // My node info. Used in many places. Set it carefully.
 
