@@ -6,7 +6,7 @@
 #include <ctype.h>
 #include <string.h>
 #include "pb.h"
-#include <RadioLib.h>
+#include "RadioLib.h"
 #include "EspHal.h"
 #include "mbedtls/aes.h"
 #include <string>
@@ -487,7 +487,7 @@ class MeshtasticCompact {
  */
 class MeshtasticCompactHelpers {
    public:
-    static void NodeInfoBuilder(MC_NodeInfo& nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model);
+    static void NodeInfoBuilder(MC_NodeInfo* nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model);
     static void PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude = 0, uint32_t speed = 0, uint32_t sats_in_view = 0);
     static void TelemetryDeviceBuilder(MC_Telemetry_Device& telemetry, uint32_t uptime_seconds = 0, float voltage = 0.0f, float battery_level = -1.0f, float channel_utilization = -1.0f);
     static void TelemetryEnvironmentBuilder(MC_Telemetry_Environment& telemetry, float temperature = -10000.0f, float humidity = -1.0f, float pressure = -1.0f, float lux = -1.0f);
