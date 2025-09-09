@@ -1,0 +1,17 @@
+{
+    "name": "MeshtasticEspCompact",
+    "keywords": "meshtastic, esp32s3, lora",
+    "description": "Library for Meshtastic ",
+    "authors": {
+        "name": "HTotoo",
+        "url": "https://github.com/htotoo",
+        "maintainer": true
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/htotoo/EspMeshtasticCompact.git"
+    },
+    "version": "0.0.1",
+    "frameworks": "espidf",
+    "platforms": "espressif32"
+}

@@ -1,5 +1,0 @@
-dependencies:
-  idf:
-    version: ">=5.1.0"
-  MeshtasticCompact:
-    path: ../components/MeshtasticCompact
