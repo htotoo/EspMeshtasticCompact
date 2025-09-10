@@ -62,13 +62,54 @@ class NodeInfoDB {
     iterator end() { return iterator(nodeinfos, valid, MAX_NODES); }
 
     /**
+     * @brief Returns a pointer to the node information at the given index.
+     * If the index is out of bounds or not valid, returns nullptr.
+     *
+     * @param index
+     * @return MC_NodeInfo*
+     */
+    MC_NodeInfo* getByIndex(size_t index) {
+        if (index < MAX_NODES && valid[index]) {
+            return &nodeinfos[index];
+        }
+        return nullptr;
+    }
+
+    /**
+     * @brief Get the Random Node object
+     *
+     * @return MC_NodeInfo*
+     */
+    MC_NodeInfo* getRandomNode() {
+        uint8_t cnt = 0;
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i]) {
+                ++cnt;
+            }
+        }
+        if (cnt == 0) return nullptr;
+        size_t target = esp_random() % cnt;
+        cnt = 0;
+        for (size_t i = 0; i < MAX_NODES; ++i) {
+            if (valid[i]) {
+                if (cnt == target) {
+                    return &nodeinfos[i];
+                }
+                cnt++;
+            }
+        }
+        return nullptr;  // should never reach here
+    }
+
+    /**
      * @brief Adds new entry or updates existing node information.
      * If the node already exists, it updates the information. If no space, uses LRU policy to overwrite the oldest entry.
      *
      * @param node_id
      * @param info
      */
-    void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
+    void
+    addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
         // Try to update existing
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
