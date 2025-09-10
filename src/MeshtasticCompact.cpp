@@ -69,7 +69,101 @@ MeshtasticCompact::~MeshtasticCompact() {
     }
 }
 
+bool MeshtasticCompact::setRadioFrequency(float freq) {
+    if (radio == nullptr) {
+        return false;
+    }
+    int state = RADIOLIB_ERR_NONE;
+    {
+        std::lock_guard<std::mutex> lock(mtx_radio);
+        state = radio->setFrequency(freq);
+    }
+    return (state == RADIOLIB_ERR_NONE);
+}
+bool MeshtasticCompact::setRadioSpreadingFactor(uint8_t sf) {
+    if (radio == nullptr) {
+        return false;
+    }
+    int state = RADIOLIB_ERR_NONE;
+    {
+        std::lock_guard<std::mutex> lock(mtx_radio);
+        switch (radio_type) {
+            case RadioType::SX1261:
+            case RadioType::SX1262:
+            case RadioType::SX1268:
+                state = ((SX126x*)radio)->setSpreadingFactor(sf);
+                break;
+            case RadioType::SX1276:
+                state = ((SX1276*)radio)->setSpreadingFactor(sf);
+                break;
+            default:
+                state = RADIOLIB_ERR_UNKNOWN;
+                break;
+        }
+        return (state == RADIOLIB_ERR_NONE);
+    }
+}
+
+bool MeshtasticCompact::setRadioBandwidth(uint32_t bw) {
+    if (radio == nullptr) {
+        return false;
+    }
+    int state = RADIOLIB_ERR_NONE;
+    {
+        std::lock_guard<std::mutex> lock(mtx_radio);
+        switch (radio_type) {
+            case RadioType::SX1261:
+            case RadioType::SX1262:
+            case RadioType::SX1268:
+                state = ((SX126x*)radio)->setBandwidth(bw);
+                break;
+            case RadioType::SX1276:
+                state = ((SX1276*)radio)->setBandwidth(bw);
+                break;
+            default:
+                state = RADIOLIB_ERR_UNKNOWN;
+                break;
+        }
+        return (state == RADIOLIB_ERR_NONE);
+    }
+}
+bool MeshtasticCompact::setRadioCodingRate(uint8_t cr) {
+    if (radio == nullptr) {
+        return false;
+    }
+    int state = RADIOLIB_ERR_NONE;
+    {
+        std::lock_guard<std::mutex> lock(mtx_radio);
+        switch (radio_type) {
+            case RadioType::SX1261:
+            case RadioType::SX1262:
+            case RadioType::SX1268:
+                state = ((SX126x*)radio)->setCodingRate(cr);
+                break;
+            case RadioType::SX1276:
+                state = ((SX1276*)radio)->setCodingRate(cr);
+                break;
+            default:
+                state = RADIOLIB_ERR_UNKNOWN;
+                break;
+        }
+        return (state == RADIOLIB_ERR_NONE);
+    }
+}
+bool MeshtasticCompact::setRadioPower(int8_t power) {
+    if (radio == nullptr) {
+        return false;
+    }
+    int state = RADIOLIB_ERR_NONE;
+    {
+        std::lock_guard<std::mutex> lock(mtx_radio);
+        state = radio->setOutputPower(power);
+    }
+    return (state == RADIOLIB_ERR_NONE);
+}
+
 bool MeshtasticCompact::RadioInit(RadioType radio_type, Radio_PINS& radio_pins, LoraConfig& lora_config) {
+    this->radio_type = radio_type;
     ESP_LOGI(TAG, "RadioInit");
     hal = new EspHal(radio_pins.sck, radio_pins.miso, radio_pins.mosi, radio_pins.cs);
     int state = RADIOLIB_ERR_NONE;
