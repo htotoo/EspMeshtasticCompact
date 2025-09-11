@@ -236,26 +236,6 @@ class EspHal : public RadioLibHal {
     }
 
     void spiBegin() {
-        // gpio_reset_pin(SX126x_SPI_SELECT);
-        // gpio_set_direction(SX126x_SPI_SELECT, GPIO_MODE_OUTPUT);
-        // gpio_set_level(SX126x_SPI_SELECT, 1);
-
-        // gpio_reset_pin(SX126x_RESET);
-        // gpio_set_direction(SX126x_RESET, GPIO_MODE_OUTPUT);
-
-        // gpio_reset_pin(SX126x_BUSY);
-        // gpio_set_direction(SX126x_BUSY, GPIO_MODE_INPUT);
-
-        /*if (SX126x_TXEN != -1) {
-            gpio_reset_pin(SX126x_TXEN);
-            gpio_set_direction(SX126x_TXEN, GPIO_MODE_OUTPUT);
-        }
-
-        if (SX126x_RXEN != -1) {
-            gpio_reset_pin(SX126x_RXEN);
-            gpio_set_direction(SX126x_RXEN, GPIO_MODE_OUTPUT);
-        }*/
-
         spi_bus_config_t spi_bus_config = {
             .mosi_io_num = spiMOSI,
             .miso_io_num = spiMISO,
@@ -300,9 +280,23 @@ class EspHal : public RadioLibHal {
     }
 
     void spiTransfer(uint8_t* out, size_t len, uint8_t* in) {
-        for (size_t i = 0; i < len; i++) {
-            in[i] = this->spiTransferByte(out[i]);
+        esp_err_t ret;
+        spi_transaction_t t;
+
+        if (len == 0) {
+            return;  // Nothing to do
         }
+
+        memset(&t, 0, sizeof(t));  // Zero out the transaction
+        t.length = len * 8;        // Length is in bits, not bytes
+        t.tx_buffer = out;         // Data to send
+        t.rx_buffer = in;          // Buffer to receive into
+
+        // Use the polling (blocking) transmit function.
+        // This is the most stable method and avoids internal queueing bugs.
+        ret = spi_device_polling_transmit(SpiHandle, &t);
+
+        ESP_ERROR_CHECK(ret);  // Should never fail when used correctly
     }
 
     void spiEndTransaction() {
