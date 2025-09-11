@@ -347,10 +347,9 @@ void MeshtasticCompact::task_send(void* pvParameters) {
                         ESP_LOGE(TAG, "Failed to send packet 2 times in a row, code %d", err);
                     }
                 }
+                mshcomp->radio->startReceive();
             }
         }
-        vTaskDelay(1 / portTICK_PERIOD_MS);
-        mshcomp->radio->startReceive();
         // Restart receiving after sending
         vTaskDelay(350 / portTICK_PERIOD_MS);  // Wait before next send attempt
     }  // end while
