@@ -8,6 +8,7 @@
 #include "pb.h"
 #include "RadioLib.h"
 #include "EspHal.h"
+#include "esp_random.h"
 #include "mbedtls/aes.h"
 #include <string>
 #include "meshtastic/mesh.pb.h"
@@ -382,6 +383,7 @@ class MeshtasticCompact {
     void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
     void setOnTraceroute(OnTracerouteCallback cb) { onTraceroute = cb; }
     void setOnRaw(OnRaw cb) { onRaw = cb; }
+
     /**
      * @brief Get the Last Signal Strengh Data
      *
@@ -457,10 +459,18 @@ class MeshtasticCompact {
     void SendTracerouteReply(MC_Header& header, MC_RouteDiscovery& route_discovery);
     void SendTraceroute(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
 
+    // Radio settings on the fly
+    bool setRadioFrequency(float freq);
+    bool setRadioSpreadingFactor(uint8_t sf);
+    bool setRadioBandwidth(uint32_t bw);
+    bool setRadioCodingRate(uint8_t cr);
+    bool setRadioPower(int8_t power);
+
     NodeInfoDB nodeinfo_db;          // NodeInfo database.
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
     MC_Position my_position;         // My position, used for auto replies (when enabled) on position requests. Or when you call SendMyPosition()
    private:
+    RadioType radio_type;
     bool RadioListen();    // inits the listening thread for the radio
     bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
     // handlers
