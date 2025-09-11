@@ -109,8 +109,7 @@ class NodeInfoDB {
      * @param node_id
      * @param info
      */
-    void
-    addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
+    void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
         // Try to update existing
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -124,6 +123,8 @@ class NodeInfoDB {
                 nodeinfos[i] = info;
                 valid[i] = true;
                 is_position_valid[i] = false;
+                positions[i].has_latitude_i = false;
+                positions[i].has_longitude_i = false;
                 return;
             }
         }
@@ -139,6 +140,8 @@ class NodeInfoDB {
         nodeinfos[oldest_idx] = info;
         // reset position validity for overwritten node
         is_position_valid[oldest_idx] = false;
+        positions[oldest_idx].has_latitude_i = false;
+        positions[oldest_idx].has_longitude_i = false;
     }
 
     /**
