@@ -603,7 +603,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
                     MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
                     intOnPositionMessage(header, position, decodedtmp.want_response);
-
+                    if (onNativePositionMessage) {
+                        onNativePositionMessage(header, position_msg);
+                    }
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
@@ -622,6 +624,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     node_info.role = user_msg.role;
                     node_info.hw_model = user_msg.hw_model;
                     intOnNodeInfo(header, node_info, decodedtmp.want_response);
+                    if (onNativeNodeInfo) {
+                        onNativeNodeInfo(header, node_info);
+                    }
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");
                 }
@@ -661,6 +666,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     waypoint.has_latitude_i = waypoint_msg.has_latitude_i;
                     waypoint.has_longitude_i = waypoint_msg.has_longitude_i;
                     intOnWaypointMessage(header, waypoint);
+                    if (onNativeWaypointMessage) {
+                        onNativeWaypointMessage(header, waypoint_msg);
+                    }
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Waypoint");
                 }
@@ -722,6 +730,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                             device_metrics.has_voltage = telemetry_msg.variant.device_metrics.has_voltage;
                             device_metrics.has_channel_utilization = telemetry_msg.variant.device_metrics.has_channel_utilization;
                             intOnTelemetryDevice(header, device_metrics);
+                            if (onNativeTelemetryDevice) {
+                                onNativeTelemetryDevice(header, telemetry_msg.variant.device_metrics);
+                            }
                             break;
                         case meshtastic_Telemetry_environment_metrics_tag:
                             MC_Telemetry_Environment environment_metrics;
@@ -734,6 +745,9 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                             environment_metrics.has_pressure = telemetry_msg.variant.environment_metrics.has_barometric_pressure;
                             environment_metrics.has_lux = telemetry_msg.variant.environment_metrics.has_lux;
                             intOnTelemetryEnvironment(header, environment_metrics);
+                            if (onNativeTelemetryEnvironment) {
+                                onNativeTelemetryEnvironment(header, telemetry_msg.variant.environment_metrics);
+                            }
                             break;
                         case meshtastic_Telemetry_air_quality_metrics_tag:
                             // ESP_LOGI(TAG, "Air Quality Metrics: PM2.5: %lu ", telemetry_msg.variant.air_quality_metrics.pm25_standard);

@@ -17,351 +17,12 @@
 #include <condition_variable>
 #include <queue>
 #include <deque>
+#include "MeshtasticCompactNodeInfoDB.hpp"
+#include "MeshtasticCompactRouter.hpp"
+#include "MeshtasticCompactOutQueue.hpp"
+#include "MeshtasticCompactFileIO.hpp"
+
 // https://github.com/meshtastic/firmware/blob/81828c6244daede254cf759a0f2bd939b2e7dd65/variants/heltec_wsl_v3/variant.h
-
-/**
- * @brief Handles an in-memory database of node information.
- *
- */
-class NodeInfoDB {
-   public:
-    static constexpr size_t MAX_NODES = 32;
-
-    // Iterator for NodeInfoDB
-    class iterator {
-       public:
-        iterator(MC_NodeInfo* nodeinfos, bool* valid, size_t idx)
-            : nodeinfos_(nodeinfos), valid_(valid), idx_(idx) {
-            advance_to_valid();
-        }
-        iterator& operator++() {
-            ++idx_;
-            advance_to_valid();
-            return *this;
-        }
-        MC_NodeInfo& operator*() {
-            assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
-            return nodeinfos_[idx_];
-        }
-        MC_NodeInfo* operator->() {
-            assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
-            return &nodeinfos_[idx_];
-        }
-        bool operator!=(const iterator& other) const { return idx_ != other.idx_; }
-        bool operator==(const iterator& other) const { return idx_ == other.idx_; }
-
-       private:
-        void advance_to_valid() {
-            while (idx_ < MAX_NODES && !valid_[idx_]) ++idx_;
-        }
-        MC_NodeInfo* nodeinfos_;
-        bool* valid_;
-        size_t idx_;
-    };
-
-    iterator begin() { return iterator(nodeinfos, valid, 0); }
-    iterator end() { return iterator(nodeinfos, valid, MAX_NODES); }
-
-    /**
-     * @brief Returns a pointer to the node information at the given index.
-     * If the index is out of bounds or not valid, returns nullptr.
-     *
-     * @param index
-     * @return MC_NodeInfo*
-     */
-    MC_NodeInfo* getByIndex(size_t index) {
-        if (index < MAX_NODES && valid[index]) {
-            return &nodeinfos[index];
-        }
-        return nullptr;
-    }
-
-    /**
-     * @brief Get the Random Node object
-     *
-     * @return MC_NodeInfo*
-     */
-    MC_NodeInfo* getRandomNode() {
-        uint8_t cnt = 0;
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i]) {
-                ++cnt;
-            }
-        }
-        if (cnt == 0) return nullptr;
-        size_t target = esp_random() % cnt;
-        cnt = 0;
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i]) {
-                if (cnt == target) {
-                    return &nodeinfos[i];
-                }
-                cnt++;
-            }
-        }
-        return nullptr;  // should never reach here
-    }
-
-    /**
-     * @brief Adds new entry or updates existing node information.
-     * If the node already exists, it updates the information. If no space, uses LRU policy to overwrite the oldest entry.
-     *
-     * @param node_id
-     * @param info
-     */
-    void addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
-        // Try to update existing
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id) {
-                nodeinfos[i] = info;
-                return;
-            }
-        }
-        // Add new if space
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (!valid[i]) {
-                nodeinfos[i] = info;
-                valid[i] = true;
-                is_position_valid[i] = false;
-                positions[i].has_latitude_i = false;
-                positions[i].has_longitude_i = false;
-                return;
-            }
-        }
-        // No space:  LRU (overwrite the oldest entry)
-        size_t oldest_idx = 0;
-        uint32_t oldest_time = nodeinfos[0].last_updated;
-        for (size_t i = 1; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].last_updated < oldest_time) {
-                oldest_time = nodeinfos[i].last_updated;
-                oldest_idx = i;
-            }
-        }
-        nodeinfos[oldest_idx] = info;
-        // reset position validity for overwritten node
-        is_position_valid[oldest_idx] = false;
-        positions[oldest_idx].has_latitude_i = false;
-        positions[oldest_idx].has_longitude_i = false;
-    }
-
-    /**
-     * @brief Returns a pointer to the node information for the given node_id.
-     *
-     * @param node_id
-     * @return MC_NodeInfo*
-     */
-    MC_NodeInfo* get(uint32_t node_id) {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id) {
-                return &nodeinfos[i];
-            }
-        }
-        return nullptr;
-    }
-
-    /**
-     * @brief Removes a node entry by node_id. (Along with position if exists)
-     *
-     * @param node_id
-     */
-    void remove(uint32_t node_id) {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id) {
-                valid[i] = false;
-                nodeinfos[i].node_id = 0;
-                return;
-            }
-        }
-    }
-
-    /**
-     * @brief Removes all entries from the database and the position information too.
-     *
-     */
-    void clearAll() {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            valid[i] = false;
-            nodeinfos[i].node_id = 0;
-            is_position_valid[i] = false;
-        }
-    }
-
-    /**
-     * @brief Get the Position object for the node with the given node_id.
-     *
-     * @param node_id
-     * @param out_position
-     * @return true Got position information for the node.
-     * @return false Don't have position information for the node.
-     */
-    bool getPosition(uint32_t node_id, MC_Position& out_position) const {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id && is_position_valid[i]) {
-                out_position = positions[i];
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @brief Set the Position object for the node with the given node_id.
-     *
-     * @param node_id
-     * @param position
-     * @return true Successfully set the position for the node.
-     * @return false Node with the given node_id not found or position not set.
-     */
-    bool setPosition(uint32_t node_id, const MC_Position& position) {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id) {
-                positions[i] = position;
-                is_position_valid[i] = true;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @brief Remove the position information for the node with the given node_id.
-     *
-     * @param node_id
-     */
-    void removePosition(uint32_t node_id) {
-        for (size_t i = 0; i < MAX_NODES; ++i) {
-            if (valid[i] && nodeinfos[i].node_id == node_id) {
-                is_position_valid[i] = false;
-                // Optionally clear position data:
-                positions[i] = MC_Position{};
-                return;
-            }
-        }
-    }
-
-   private:
-    MC_NodeInfo nodeinfos[MAX_NODES];
-    MC_Position positions[MAX_NODES];
-    bool is_position_valid[MAX_NODES] = {};  // stores if the position is stored for the node
-    bool valid[MAX_NODES] = {};              // stores if the index is taken or free
-};
-
-class MeshCompactOutQueue {
-   public:
-    static constexpr size_t MAX_ENTRIES = 15;
-
-    // Add entry to queue, returns true if successful, false if full
-    bool push(const MC_OutQueueEntry& entry, bool priority = false) {
-        std::unique_lock<std::mutex> lock(mtx);
-        if (queue.size() >= MAX_ENTRIES && !priority) {
-            return false;
-        }
-        if (!priority) {
-            queue.push_back(entry);
-        } else {
-            queue.push_front(entry);
-            while (queue.size() > MAX_ENTRIES) {
-                queue.pop_back();
-            }
-        }
-        cv.notify_one();
-        return true;
-    }
-
-    // Remove and get entry from queue, blocks if empty
-    MC_OutQueueEntry pop() {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this] { return (!queue.empty() || stopFlag); });
-        MC_OutQueueEntry entry;
-        entry.header.srcnode = 0;
-        if (stopFlag) {
-            // Return a default-constructed (empty) entry if stopFlag is set
-            return entry;
-        }
-        entry = queue.front();
-        queue.pop_front();
-        return entry;
-    }
-
-    // Notify one waiting thread to unblock pop() immediately (even if queue is empty)
-    void stop_wait() {
-        stopFlag = true;
-        cv.notify_one();
-    }
-
-    // Try to remove and get entry from queue, returns true if successful
-    bool try_pop(MC_OutQueueEntry& entry) {
-        std::unique_lock<std::mutex> lock(mtx);
-        if (queue.empty()) return false;
-        entry = queue.front();
-        queue.pop_front();
-        return true;
-    }
-
-    // Check if queue is empty
-    bool empty() const {
-        std::lock_guard<std::mutex> lock(mtx);
-        return queue.empty();
-    }
-
-    // Get current size
-    size_t size() const {
-        std::lock_guard<std::mutex> lock(mtx);
-        return queue.size();
-    }
-
-   private:
-    mutable std::mutex mtx;
-    std::condition_variable cv;
-    std::deque<MC_OutQueueEntry> queue;
-    bool stopFlag = false;
-};
-
-class MeshtasticCompactRouter {
-   public:
-    static constexpr size_t MAX_ENTRIES = 20;
-
-    struct Entry {
-        uint32_t src;
-        uint32_t msgid;
-    };
-
-    void setExcludeSelf(bool value) { exclude_self = value; }  // Please don't adjust this unless you know what you are doing!
-    void setMyId(uint32_t id) { my_id = id; }
-
-    MeshtasticCompactRouter() : count(0), head(0) {}
-
-    // Returns true if (src, msgid) was not present and is now inserted, false if already present
-    bool onCheck(uint32_t src, uint32_t msgid) {
-        if (exclude_self && src == my_id) {
-            // ESP_LOGI("Router", "Ignoring message from self: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
-            return false;  // Ignore messages from self
-        }
-        std::lock_guard<std::mutex> lock(mtx);
-        // Check for existence
-        for (size_t i = 0; i < count; ++i) {
-            size_t idx = (head - 1 - i + MAX_ENTRIES) % MAX_ENTRIES;
-            if (entries[idx].src == src && entries[idx].msgid == msgid) {
-                // ESP_LOGI("Router", "Ignoring message duplicated: src=%" PRIu32 ", msgid=%" PRIu32, src, msgid);
-                return false;
-            }
-        }
-
-        // Insert new entry at head (LRU: overwrite oldest if full)
-        entries[head] = {src, msgid};
-        head = (head + 1) % MAX_ENTRIES;
-        if (count < MAX_ENTRIES) ++count;
-        return true;
-    }
-
-   private:
-    Entry entries[MAX_ENTRIES];
-    size_t count;
-    size_t head;               // Points to next insert position (oldest overwritten)
-    bool exclude_self = true;  // Exclude self messages by default
-    uint32_t my_id = 0;        // My node ID, used to exclude
-    std::mutex mtx;
-};
 
 class MeshtasticCompact {
    public:
@@ -378,6 +39,12 @@ class MeshtasticCompact {
     using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
     using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     using OnRaw = void (*)(const uint8_t* data, size_t len);
+    using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position);
+    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_NodeInfo& nodeinfo);
+    using OnNativeWaypointMessageCallback = void (*)(MC_Header& header, meshtastic_Waypoint& waypoint);
+    using OnNativeTelemetryDeviceCallback = void (*)(MC_Header& header, meshtastic_DeviceMetrics& telemetry);
+    using OnNativeTelemetryEnvironmentCallback = void (*)(MC_Header& header, meshtastic_EnvironmentMetrics& telemetry);
+
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
     void setOnPositionMessage(OnPositionMessageCallback cb) { onPositionMessage = cb; }
@@ -386,6 +53,11 @@ class MeshtasticCompact {
     void setOnTelemetryEnvironment(OnTelemetryEnvironmentCallback cb) { onTelemetryEnvironment = cb; }
     void setOnTraceroute(OnTracerouteCallback cb) { onTraceroute = cb; }
     void setOnRaw(OnRaw cb) { onRaw = cb; }
+    void setOnNativePositionMessage(OnNativePositionMessageCallback cb) { onNativePositionMessage = cb; }
+    void setOnNativeNodeInfo(OnNativeNodeInfoCallback cb) { onNativeNodeInfo = cb; }
+    void setOnNativeWaypointMessage(OnNativeWaypointMessageCallback cb) { onNativeWaypointMessage = cb; }
+    void setOnNativeTelemetryDevice(OnNativeTelemetryDeviceCallback cb) { onNativeTelemetryDevice = cb; }
+    void setOnNativeTelemetryEnvironment(OnNativeTelemetryEnvironmentCallback cb) { onNativeTelemetryEnvironment = cb; }
 
     /**
      * @brief Get the Last Signal Strengh Data
@@ -469,6 +141,13 @@ class MeshtasticCompact {
     bool setRadioCodingRate(uint8_t cr);
     bool setRadioPower(int8_t power);
 
+    void saveNodeDb() {
+        MeshtasticCompactFileIO::saveNodeDb(nodeinfo_db);
+    }
+    void loadNodeDb() {
+        MeshtasticCompactFileIO::loadNodeDb(nodeinfo_db);
+    }
+
     NodeInfoDB nodeinfo_db;          // NodeInfo database.
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
     MC_Position my_position;         // My position, used for auto replies (when enabled) on position requests. Or when you call SendMyPosition()
@@ -537,6 +216,11 @@ class MeshtasticCompact {
     OnTelemetryEnvironmentCallback onTelemetryEnvironment = nullptr;
     OnTracerouteCallback onTraceroute = nullptr;
     OnRaw onRaw = nullptr;
+    OnNativePositionMessageCallback onNativePositionMessage = nullptr;
+    OnNativeNodeInfoCallback onNativeNodeInfo = nullptr;
+    OnNativeWaypointMessageCallback onNativeWaypointMessage = nullptr;
+    OnNativeTelemetryDeviceCallback onNativeTelemetryDevice = nullptr;
+    OnNativeTelemetryEnvironmentCallback onNativeTelemetryEnvironment = nullptr;
 };
 
 /**
