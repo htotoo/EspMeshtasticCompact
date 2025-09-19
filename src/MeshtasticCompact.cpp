@@ -422,50 +422,114 @@ void MeshtasticCompact::intOnMessage(MC_Header& header, MC_TextMessage& message)
     };
 }
 
-void MeshtasticCompact::intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply) {
+void MeshtasticCompact::intOnPositionMessage(MC_Header& header, meshtastic_Position& position_msg, bool want_reply) {
+    MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
     if (position.has_latitude_i && position.has_longitude_i) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
     bool needReply = (want_reply == true && !is_auto_full_node && is_send_enabled);
     if (onPositionMessage) {
         onPositionMessage(header, position, needReply);
     };
+    if (onNativePositionMessage) {
+        onNativePositionMessage(header, position_msg, needReply);
+    }
     if (want_reply && is_auto_full_node && is_send_enabled) {
         ESP_LOGI(TAG, "AUTO Sending my pos info to node 0x%08" PRIx32, header.srcnode);
         SendMyPosition(header.srcnode);
     }
 }
 
-void MeshtasticCompact::intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply) {
+void MeshtasticCompact::intOnNodeInfo(MC_Header& header, meshtastic_User& user_msg, bool want_reply) {
+    MC_NodeInfo node_info;
+    node_info.node_id = header.srcnode;  // srcnode is the node ID
+    memcpy(node_info.id, user_msg.id, sizeof(node_info.id));
+    memcpy(node_info.short_name, user_msg.short_name, sizeof(node_info.short_name));
+    memcpy(node_info.long_name, user_msg.long_name, sizeof(node_info.long_name));
+    memcpy(node_info.macaddr, user_msg.macaddr, sizeof(node_info.macaddr));
+    memcpy(node_info.public_key, user_msg.public_key.bytes, sizeof(node_info.public_key));
+    node_info.public_key_size = user_msg.public_key.size;
+    node_info.role = user_msg.role;
+    node_info.hw_model = user_msg.hw_model;
+
     nodeinfo_db.addOrUpdate(header.srcnode, nodeinfo);  // if want ack, then exchange happened, but we got info too
     nodeinfo.last_updated = hal->millis();
     bool needReply = (want_reply == true && !is_auto_full_node) && is_send_enabled;
     if (onNodeInfo) {
         onNodeInfo(header, nodeinfo, needReply);
     };
+    if (onNativeNodeInfo) {
+        onNativeNodeInfo(header, user_msg, needReply);
+    }
     if (want_reply && is_auto_full_node && is_send_enabled) {
         ESP_LOGI(TAG, "AUTO Sending my node info to node 0x%08" PRIx32, header.srcnode);
         SendMyNodeInfo(header.srcnode);
     }
 }
-void MeshtasticCompact::intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint) {
+void MeshtasticCompact::intOnWaypointMessage(MC_Header& header, meshtastic_Waypoint& waypoint_msg) {
+    MC_Waypoint waypoint;
+    waypoint.latitude_i = waypoint_msg.latitude_i;
+    waypoint.longitude_i = waypoint_msg.longitude_i;
+    memcpy(waypoint.name, waypoint_msg.name, sizeof(waypoint.name));
+    memcpy(waypoint.description, waypoint_msg.description, sizeof(waypoint.description));
+    waypoint.icon = waypoint_msg.icon;
+    waypoint.expire = waypoint_msg.expire;
+    waypoint.id = waypoint_msg.id;
+    waypoint.has_latitude_i = waypoint_msg.has_latitude_i;
+    waypoint.has_longitude_i = waypoint_msg.has_longitude_i;
     // should save this to waypoint database //todo
     if (onWaypointMessage) {
         onWaypointMessage(header, waypoint);
     };
+    if (onNativeWaypointMessage) {
+        onNativeWaypointMessage(header, waypoint_msg);
+    }
 }
 
-void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry) {
+void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, _meshtastic_Telemetry& telemetry_msg) {
+    MC_Telemetry_Device device_metrics;
+    device_metrics.battery_level = telemetry_msg.variant.device_metrics.battery_level;
+    device_metrics.uptime_seconds = telemetry_msg.variant.device_metrics.uptime_seconds;
+    device_metrics.voltage = telemetry_msg.variant.device_metrics.voltage;
+    device_metrics.channel_utilization = telemetry_msg.variant.device_metrics.channel_utilization;
+    device_metrics.has_battery_level = telemetry_msg.variant.device_metrics.has_battery_level;
+    device_metrics.has_uptime_seconds = telemetry_msg.variant.device_metrics.has_uptime_seconds;
+    device_metrics.has_voltage = telemetry_msg.variant.device_metrics.has_voltage;
+    device_metrics.has_channel_utilization = telemetry_msg.variant.device_metrics.has_channel_utilization;
     if (onTelemetryDevice) {
-        onTelemetryDevice(header, telemetry);
+        onTelemetryDevice(header, device_metrics);
     };
+    if (onNativeTelemetryDevice) {
+        onNativeTelemetryDevice(header, telemetry_msg.variant.device_metrics);
+    }
 }
 
-void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry) {
+void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, _meshtastic_Telemetry& telemetry_msg) {
+    MC_Telemetry_Environment environment_metrics;
+    environment_metrics.temperature = telemetry_msg.variant.environment_metrics.temperature;
+    environment_metrics.humidity = telemetry_msg.variant.environment_metrics.relative_humidity;
+    environment_metrics.pressure = telemetry_msg.variant.environment_metrics.barometric_pressure;
+    environment_metrics.lux = telemetry_msg.variant.environment_metrics.lux;
+    environment_metrics.has_temperature = telemetry_msg.variant.environment_metrics.has_temperature;
+    environment_metrics.has_humidity = telemetry_msg.variant.environment_metrics.has_relative_humidity;
+    environment_metrics.has_pressure = telemetry_msg.variant.environment_metrics.has_barometric_pressure;
+    environment_metrics.has_lux = telemetry_msg.variant.environment_metrics.has_lux;
     if (onTelemetryEnvironment) {
-        onTelemetryEnvironment(header, telemetry);
+        onTelemetryEnvironment(header, environment_metrics);
     };
+    if (onNativeTelemetryEnvironment) {
+        onNativeTelemetryEnvironment(header, telemetry_msg.variant.environment_metrics);
+    }
 }
 
-void MeshtasticCompact::intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery) {
+void MeshtasticCompact::intOnTraceroute(MC_Header& header, meshtastic_RouteDiscovery& route_discovery_msg) {
+    MC_RouteDiscovery route_discovery;
+    route_discovery.route_count = route_discovery_msg.route_count;
+    route_discovery.snr_towards_count = route_discovery_msg.snr_towards_count;
+    route_discovery.route_back_count = route_discovery_msg.route_back_count;
+    route_discovery.snr_back_count = route_discovery_msg.snr_back_count;
+    memcpy(route_discovery.route, route_discovery_msg.route, sizeof(route_discovery.route));
+    memcpy(route_discovery.snr_towards, route_discovery_msg.snr_towards, sizeof(route_discovery.snr_towards));
+    memcpy(route_discovery.route_back, route_discovery_msg.route_back, sizeof(route_discovery.route_back));
+    memcpy(route_discovery.snr_back, route_discovery_msg.snr_back, sizeof(route_discovery.snr_back));
     // check is it for us
     if (header.dstnode == my_nodeinfo.node_id) {
         if (header.request_id == 0) {
@@ -601,11 +665,8 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: protobuf Position
                 meshtastic_Position position_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Position_msg, &position_msg)) {
-                    MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
-                    intOnPositionMessage(header, position, decodedtmp.want_response);
-                    if (onNativePositionMessage) {
-                        onNativePositionMessage(header, position_msg);
-                    }
+                    intOnPositionMessage(header, position_msg, decodedtmp.want_response);
+
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
@@ -613,20 +674,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: protobuf User
                 meshtastic_User user_msg = {};
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_User_msg, &user_msg)) {
-                    MC_NodeInfo node_info;
-                    node_info.node_id = header.srcnode;  // srcnode is the node ID
-                    memcpy(node_info.id, user_msg.id, sizeof(node_info.id));
-                    memcpy(node_info.short_name, user_msg.short_name, sizeof(node_info.short_name));
-                    memcpy(node_info.long_name, user_msg.long_name, sizeof(node_info.long_name));
-                    memcpy(node_info.macaddr, user_msg.macaddr, sizeof(node_info.macaddr));
-                    memcpy(node_info.public_key, user_msg.public_key.bytes, sizeof(node_info.public_key));
-                    node_info.public_key_size = user_msg.public_key.size;
-                    node_info.role = user_msg.role;
-                    node_info.hw_model = user_msg.hw_model;
-                    intOnNodeInfo(header, node_info, decodedtmp.want_response);
-                    if (onNativeNodeInfo) {
-                        onNativeNodeInfo(header, user_msg);
-                    }
+                    intOnNodeInfo(header, user_msg, decodedtmp.want_response);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");
                 }
@@ -655,20 +703,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: protobuf Waypoint
                 meshtastic_Waypoint waypoint_msg = {};  // todo store and callbacke
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_Waypoint_msg, &waypoint_msg)) {
-                    MC_Waypoint waypoint;
-                    waypoint.latitude_i = waypoint_msg.latitude_i;
-                    waypoint.longitude_i = waypoint_msg.longitude_i;
-                    memcpy(waypoint.name, waypoint_msg.name, sizeof(waypoint.name));
-                    memcpy(waypoint.description, waypoint_msg.description, sizeof(waypoint.description));
-                    waypoint.icon = waypoint_msg.icon;
-                    waypoint.expire = waypoint_msg.expire;
-                    waypoint.id = waypoint_msg.id;
-                    waypoint.has_latitude_i = waypoint_msg.has_latitude_i;
-                    waypoint.has_longitude_i = waypoint_msg.has_longitude_i;
-                    intOnWaypointMessage(header, waypoint);
-                    if (onNativeWaypointMessage) {
-                        onNativeWaypointMessage(header, waypoint_msg);
-                    }
+                    intOnWaypointMessage(header, waypoint_msg);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Waypoint");
                 }
@@ -720,34 +755,10 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     // ESP_LOGI(TAG, "Telemetry Time: %lu", telemetry_msg.time);
                     switch (telemetry_msg.which_variant) {
                         case meshtastic_Telemetry_device_metrics_tag:
-                            MC_Telemetry_Device device_metrics;
-                            device_metrics.battery_level = telemetry_msg.variant.device_metrics.battery_level;
-                            device_metrics.uptime_seconds = telemetry_msg.variant.device_metrics.uptime_seconds;
-                            device_metrics.voltage = telemetry_msg.variant.device_metrics.voltage;
-                            device_metrics.channel_utilization = telemetry_msg.variant.device_metrics.channel_utilization;
-                            device_metrics.has_battery_level = telemetry_msg.variant.device_metrics.has_battery_level;
-                            device_metrics.has_uptime_seconds = telemetry_msg.variant.device_metrics.has_uptime_seconds;
-                            device_metrics.has_voltage = telemetry_msg.variant.device_metrics.has_voltage;
-                            device_metrics.has_channel_utilization = telemetry_msg.variant.device_metrics.has_channel_utilization;
-                            intOnTelemetryDevice(header, device_metrics);
-                            if (onNativeTelemetryDevice) {
-                                onNativeTelemetryDevice(header, telemetry_msg.variant.device_metrics);
-                            }
+                            intOnTelemetryDevice(header, telemetry_msg.variant.device_metrics);
                             break;
                         case meshtastic_Telemetry_environment_metrics_tag:
-                            MC_Telemetry_Environment environment_metrics;
-                            environment_metrics.temperature = telemetry_msg.variant.environment_metrics.temperature;
-                            environment_metrics.humidity = telemetry_msg.variant.environment_metrics.relative_humidity;
-                            environment_metrics.pressure = telemetry_msg.variant.environment_metrics.barometric_pressure;
-                            environment_metrics.lux = telemetry_msg.variant.environment_metrics.lux;
-                            environment_metrics.has_temperature = telemetry_msg.variant.environment_metrics.has_temperature;
-                            environment_metrics.has_humidity = telemetry_msg.variant.environment_metrics.has_relative_humidity;
-                            environment_metrics.has_pressure = telemetry_msg.variant.environment_metrics.has_barometric_pressure;
-                            environment_metrics.has_lux = telemetry_msg.variant.environment_metrics.has_lux;
-                            intOnTelemetryEnvironment(header, environment_metrics);
-                            if (onNativeTelemetryEnvironment) {
-                                onNativeTelemetryEnvironment(header, telemetry_msg.variant.environment_metrics);
-                            }
+                            intOnTelemetryEnvironment(header, telemetry_msg);
                             break;
                         case meshtastic_Telemetry_air_quality_metrics_tag:
                             // ESP_LOGI(TAG, "Air Quality Metrics: PM2.5: %lu ", telemetry_msg.variant.air_quality_metrics.pm25_standard);
@@ -777,16 +788,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_RouteDiscovery_msg, &route_discovery_msg)) {
                     ESP_LOGI(TAG, "Route Discovery: Hop Count: %d", route_discovery_msg.route_count);
                     // header.request_id ==0 --route back
-                    MC_RouteDiscovery route_discovery;
-                    route_discovery.route_count = route_discovery_msg.route_count;
-                    route_discovery.snr_towards_count = route_discovery_msg.snr_towards_count;
-                    route_discovery.route_back_count = route_discovery_msg.route_back_count;
-                    route_discovery.snr_back_count = route_discovery_msg.snr_back_count;
-                    memcpy(route_discovery.route, route_discovery_msg.route, sizeof(route_discovery.route));
-                    memcpy(route_discovery.snr_towards, route_discovery_msg.snr_towards, sizeof(route_discovery.snr_towards));
-                    memcpy(route_discovery.route_back, route_discovery_msg.route_back, sizeof(route_discovery.route_back));
-                    memcpy(route_discovery.snr_back, route_discovery_msg.snr_back, sizeof(route_discovery.snr_back));
-                    intOnTraceroute(header, route_discovery);
+                    intOnTraceroute(header, route_discovery_msg);
                 } else {
                     ESP_LOGE(TAG, "Failed to decode RouteDiscovery");
                 }

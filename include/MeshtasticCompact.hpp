@@ -39,8 +39,8 @@ class MeshtasticCompact {
     using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
     using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     using OnRaw = void (*)(const uint8_t* data, size_t len);
-    using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position);
-    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo);
+    using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position, bool needReply);
+    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo, bool needReply);
     using OnNativeWaypointMessageCallback = void (*)(MC_Header& header, meshtastic_Waypoint& waypoint);
     using OnNativeTelemetryDeviceCallback = void (*)(MC_Header& header, meshtastic_DeviceMetrics& telemetry);
     using OnNativeTelemetryEnvironmentCallback = void (*)(MC_Header& header, meshtastic_EnvironmentMetrics& telemetry);
@@ -156,13 +156,13 @@ class MeshtasticCompact {
     bool RadioListen();    // inits the listening thread for the radio
     bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
     // handlers
-    void intOnMessage(MC_Header& header, MC_TextMessage& message);                           // Called when got any text based messages
-    void intOnPositionMessage(MC_Header& header, MC_Position& position, bool want_reply);    // Called on position messages
-    void intOnNodeInfo(MC_Header& header, MC_NodeInfo& nodeinfo, bool want_reply);           // Called on node info messages
-    void intOnWaypointMessage(MC_Header& header, MC_Waypoint& waypoint);                     // Called on waypoint messages
-    void intOnTelemetryDevice(MC_Header& header, MC_Telemetry_Device& telemetry);            // Called on telemetry device messages
-    void intOnTelemetryEnvironment(MC_Header& header, MC_Telemetry_Environment& telemetry);  // Called on telemetry environment messages
-    void intOnTraceroute(MC_Header& header, MC_RouteDiscovery& route_discovery);             // Called on traceroute messages
+    void intOnMessage(MC_Header& header, MC_TextMessage& message);                                 // Called when got any text based messages
+    void intOnPositionMessage(MC_Header& header, meshtastic_Position& position, bool want_reply);  // Called on position messages
+    void intOnNodeInfo(MC_Header& header, meshtastic_User& user_msg, bool want_reply);             // Called on node info messages
+    void intOnWaypointMessage(MC_Header& header, meshtastic_Waypoint& waypoint_msg);               // Called on waypoint messages
+    void intOnTelemetryDevice(MC_Header& header, _meshtastic_Telemetry& telemetry);                // Called on telemetry device messages
+    void intOnTelemetryEnvironment(MC_Header& header, _meshtastic_Telemetry& telemetry_msg);       // Called on telemetry environment messages
+    void intOnTraceroute(MC_Header& header, meshtastic_RouteDiscovery& route_discovery_msg);       // Called on traceroute messages
 
     // mesh network minimum functionality
 
