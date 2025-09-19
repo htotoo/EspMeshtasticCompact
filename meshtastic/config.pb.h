@@ -64,7 +64,12 @@ typedef enum _meshtastic_Config_DeviceConfig_Role {
     in areas not already covered by other routers, or to bridge around problematic terrain,
     but should not be given priority over other routers in order to avoid unnecessaraily
     consuming hops. */
-    meshtastic_Config_DeviceConfig_Role_ROUTER_LATE = 11
+    meshtastic_Config_DeviceConfig_Role_ROUTER_LATE = 11,
+    /* Description: Treats packets from or to favorited nodes as ROUTER, and all other packets as CLIENT.
+ Technical Details: Used for stronger attic/roof nodes to distribute messages more widely
+    from weaker, indoor, or less-well-positioned nodes. Recommended for users with multiple nodes
+    where one CLIENT_BASE acts as a more powerful base station, such as an attic/roof node. */
+    meshtastic_Config_DeviceConfig_Role_CLIENT_BASE = 12
 } meshtastic_Config_DeviceConfig_Role;
 
 /* Defines the device's behavior for how messages are rebroadcast */
@@ -102,7 +107,11 @@ typedef enum _meshtastic_Config_DeviceConfig_BuzzerMode {
     meshtastic_Config_DeviceConfig_BuzzerMode_NOTIFICATIONS_ONLY = 2,
     /* Non-notification system buzzer tones only.
  Buzzer is enabled only for non-notification tones such as button presses, startup, shutdown, but not for alerts. */
-    meshtastic_Config_DeviceConfig_BuzzerMode_SYSTEM_ONLY = 3
+    meshtastic_Config_DeviceConfig_BuzzerMode_SYSTEM_ONLY = 3,
+    /* Direct Message notifications only.
+ Buzzer is enabled only for direct messages and alerts, but not for button presses.
+ External notification config determines the specifics of the notification behavior. */
+    meshtastic_Config_DeviceConfig_BuzzerMode_DIRECT_MSG_ONLY = 4
 } meshtastic_Config_DeviceConfig_BuzzerMode;
 
 /* Bit field of boolean configuration options, indicating which optional
@@ -203,10 +212,10 @@ typedef enum _meshtastic_Config_DisplayConfig_OledType {
     meshtastic_Config_DisplayConfig_OledType_OLED_SSD1306 = 1,
     /* Default / Autodetect */
     meshtastic_Config_DisplayConfig_OledType_OLED_SH1106 = 2,
-    /* Can not be auto detected but set by proto. Used for 128x128 screens */
-    meshtastic_Config_DisplayConfig_OledType_OLED_SH1107 = 3,
     /* Can not be auto detected but set by proto. Used for 128x64 screens */
-    meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_64 = 4
+    meshtastic_Config_DisplayConfig_OledType_OLED_SH1107 = 3,
+    /* Can not be auto detected but set by proto. Used for 128x128 screens */
+    meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_128 = 4
 } meshtastic_Config_DisplayConfig_OledType;
 
 typedef enum _meshtastic_Config_DisplayConfig_DisplayMode {
@@ -285,7 +294,15 @@ typedef enum _meshtastic_Config_LoRaConfig_RegionCode {
     /* Philippines 915mhz */
     meshtastic_Config_LoRaConfig_RegionCode_PH_915 = 21,
     /* Australia / New Zealand 433MHz */
-    meshtastic_Config_LoRaConfig_RegionCode_ANZ_433 = 22
+    meshtastic_Config_LoRaConfig_RegionCode_ANZ_433 = 22,
+    /* Kazakhstan 433MHz */
+    meshtastic_Config_LoRaConfig_RegionCode_KZ_433 = 23,
+    /* Kazakhstan 863MHz */
+    meshtastic_Config_LoRaConfig_RegionCode_KZ_863 = 24,
+    /* Nepal 865MHz */
+    meshtastic_Config_LoRaConfig_RegionCode_NP_865 = 25,
+    /* Brazil 902MHz */
+    meshtastic_Config_LoRaConfig_RegionCode_BR_902 = 26
 } meshtastic_Config_LoRaConfig_RegionCode;
 
 /* Standard predefined channel settings
@@ -472,7 +489,8 @@ typedef struct _meshtastic_Config_DisplayConfig {
     /* Number of seconds the screen stays on after pressing the user button or receiving a message
  0 for default of one minute MAXUINT for always on */
     uint32_t screen_on_secs;
-    /* How the GPS coordinates are formatted on the OLED screen. */
+    /* Deprecated in 2.7.4: Unused
+ How the GPS coordinates are formatted on the OLED screen. */
     meshtastic_Config_DisplayConfig_GpsCoordinateFormat gps_format;
     /* Automatically toggles to the next page on the screen like a carousel, based the specified interval in seconds.
  Potentially useful for devices without user buttons. */
@@ -633,16 +651,16 @@ extern "C" {
 
 /* Helper constants for enums */
 #define _meshtastic_Config_DeviceConfig_Role_MIN meshtastic_Config_DeviceConfig_Role_CLIENT
-#define _meshtastic_Config_DeviceConfig_Role_MAX meshtastic_Config_DeviceConfig_Role_ROUTER_LATE
-#define _meshtastic_Config_DeviceConfig_Role_ARRAYSIZE ((meshtastic_Config_DeviceConfig_Role)(meshtastic_Config_DeviceConfig_Role_ROUTER_LATE+1))
+#define _meshtastic_Config_DeviceConfig_Role_MAX meshtastic_Config_DeviceConfig_Role_CLIENT_BASE
+#define _meshtastic_Config_DeviceConfig_Role_ARRAYSIZE ((meshtastic_Config_DeviceConfig_Role)(meshtastic_Config_DeviceConfig_Role_CLIENT_BASE+1))
 
 #define _meshtastic_Config_DeviceConfig_RebroadcastMode_MIN meshtastic_Config_DeviceConfig_RebroadcastMode_ALL
 #define _meshtastic_Config_DeviceConfig_RebroadcastMode_MAX meshtastic_Config_DeviceConfig_RebroadcastMode_CORE_PORTNUMS_ONLY
 #define _meshtastic_Config_DeviceConfig_RebroadcastMode_ARRAYSIZE ((meshtastic_Config_DeviceConfig_RebroadcastMode)(meshtastic_Config_DeviceConfig_RebroadcastMode_CORE_PORTNUMS_ONLY+1))
 
 #define _meshtastic_Config_DeviceConfig_BuzzerMode_MIN meshtastic_Config_DeviceConfig_BuzzerMode_ALL_ENABLED
-#define _meshtastic_Config_DeviceConfig_BuzzerMode_MAX meshtastic_Config_DeviceConfig_BuzzerMode_SYSTEM_ONLY
-#define _meshtastic_Config_DeviceConfig_BuzzerMode_ARRAYSIZE ((meshtastic_Config_DeviceConfig_BuzzerMode)(meshtastic_Config_DeviceConfig_BuzzerMode_SYSTEM_ONLY+1))
+#define _meshtastic_Config_DeviceConfig_BuzzerMode_MAX meshtastic_Config_DeviceConfig_BuzzerMode_DIRECT_MSG_ONLY
+#define _meshtastic_Config_DeviceConfig_BuzzerMode_ARRAYSIZE ((meshtastic_Config_DeviceConfig_BuzzerMode)(meshtastic_Config_DeviceConfig_BuzzerMode_DIRECT_MSG_ONLY+1))
 
 #define _meshtastic_Config_PositionConfig_PositionFlags_MIN meshtastic_Config_PositionConfig_PositionFlags_UNSET
 #define _meshtastic_Config_PositionConfig_PositionFlags_MAX meshtastic_Config_PositionConfig_PositionFlags_SPEED
@@ -669,8 +687,8 @@ extern "C" {
 #define _meshtastic_Config_DisplayConfig_DisplayUnits_ARRAYSIZE ((meshtastic_Config_DisplayConfig_DisplayUnits)(meshtastic_Config_DisplayConfig_DisplayUnits_IMPERIAL+1))
 
 #define _meshtastic_Config_DisplayConfig_OledType_MIN meshtastic_Config_DisplayConfig_OledType_OLED_AUTO
-#define _meshtastic_Config_DisplayConfig_OledType_MAX meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_64
-#define _meshtastic_Config_DisplayConfig_OledType_ARRAYSIZE ((meshtastic_Config_DisplayConfig_OledType)(meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_64+1))
+#define _meshtastic_Config_DisplayConfig_OledType_MAX meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_128
+#define _meshtastic_Config_DisplayConfig_OledType_ARRAYSIZE ((meshtastic_Config_DisplayConfig_OledType)(meshtastic_Config_DisplayConfig_OledType_OLED_SH1107_128_128+1))
 
 #define _meshtastic_Config_DisplayConfig_DisplayMode_MIN meshtastic_Config_DisplayConfig_DisplayMode_DEFAULT
 #define _meshtastic_Config_DisplayConfig_DisplayMode_MAX meshtastic_Config_DisplayConfig_DisplayMode_COLOR
@@ -681,8 +699,8 @@ extern "C" {
 #define _meshtastic_Config_DisplayConfig_CompassOrientation_ARRAYSIZE ((meshtastic_Config_DisplayConfig_CompassOrientation)(meshtastic_Config_DisplayConfig_CompassOrientation_DEGREES_270_INVERTED+1))
 
 #define _meshtastic_Config_LoRaConfig_RegionCode_MIN meshtastic_Config_LoRaConfig_RegionCode_UNSET
-#define _meshtastic_Config_LoRaConfig_RegionCode_MAX meshtastic_Config_LoRaConfig_RegionCode_ANZ_433
-#define _meshtastic_Config_LoRaConfig_RegionCode_ARRAYSIZE ((meshtastic_Config_LoRaConfig_RegionCode)(meshtastic_Config_LoRaConfig_RegionCode_ANZ_433+1))
+#define _meshtastic_Config_LoRaConfig_RegionCode_MAX meshtastic_Config_LoRaConfig_RegionCode_BR_902
+#define _meshtastic_Config_LoRaConfig_RegionCode_ARRAYSIZE ((meshtastic_Config_LoRaConfig_RegionCode)(meshtastic_Config_LoRaConfig_RegionCode_BR_902+1))
 
 #define _meshtastic_Config_LoRaConfig_ModemPreset_MIN meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST
 #define _meshtastic_Config_LoRaConfig_ModemPreset_MAX meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO
