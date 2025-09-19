@@ -33,14 +33,14 @@ class MeshtasticCompact {
     // callbacks
     using OnMessageCallback = void (*)(MC_Header& header, MC_TextMessage& message);
     using OnPositionMessageCallback = void (*)(MC_Header& header, MC_Position& position, bool needReply);
-    using OnNodeInfoCallback = void (*)(MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply);
+    using OnNodeInfoCallback = void (*)(MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply, bool newNode);
     using OnWaypointMessageCallback = void (*)(MC_Header& header, MC_Waypoint& waypoint);
     using OnTelemetryDeviceCallback = void (*)(MC_Header& header, MC_Telemetry_Device& telemetry);
     using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
     using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     using OnRaw = void (*)(const uint8_t* data, size_t len);
     using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position, bool needReply);
-    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo, bool needReply);
+    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo, bool needReply, bool newNode);
     using OnNativeWaypointMessageCallback = void (*)(MC_Header& header, meshtastic_Waypoint& waypoint);
     using OnNativeTelemetryDeviceCallback = void (*)(MC_Header& header, meshtastic_DeviceMetrics& telemetry);
     using OnNativeTelemetryEnvironmentCallback = void (*)(MC_Header& header, meshtastic_EnvironmentMetrics& telemetry);

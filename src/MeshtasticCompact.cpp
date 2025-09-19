@@ -450,14 +450,14 @@ void MeshtasticCompact::intOnNodeInfo(MC_Header& header, meshtastic_User& user_m
     node_info.role = user_msg.role;
     node_info.hw_model = user_msg.hw_model;
     node_info.last_updated = hal->millis();
-    nodeinfo_db.addOrUpdate(header.srcnode, node_info);  // if want ack, then exchange happened, but we got info too
+    bool newnode = nodeinfo_db.addOrUpdate(header.srcnode, node_info);  // if want ack, then exchange happened, but we got info too
 
     bool needReply = (want_reply == true && !is_auto_full_node) && is_send_enabled;
     if (onNodeInfo) {
-        onNodeInfo(header, node_info, needReply);
+        onNodeInfo(header, node_info, needReply, newnode);
     };
     if (onNativeNodeInfo) {
-        onNativeNodeInfo(header, user_msg, needReply);
+        onNativeNodeInfo(header, user_msg, needReply, newnode);
     }
     if (want_reply && is_auto_full_node && is_send_enabled) {
         ESP_LOGI(TAG, "AUTO Sending my node info to node 0x%08" PRIx32, header.srcnode);
