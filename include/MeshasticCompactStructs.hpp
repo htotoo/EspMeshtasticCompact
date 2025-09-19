@@ -27,7 +27,7 @@ struct LoraConfig {
     float bandwidth;           // Bandwidth in kHz
     uint8_t spreading_factor;  // Spreading factor (7-12)
     uint8_t coding_rate;       // Coding rate denominator (5-8)
-    uint8_t sync_word;         // Sync word (0x12 for private, 0x34 for public)
+    uint8_t sync_word;         // Sync word
     uint16_t preamble_length;  // Preamble length in symbols
     int8_t output_power;       // Output power in dBm
     float tcxo_voltage;        // TCXO voltage in volts
