@@ -755,7 +755,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     // ESP_LOGI(TAG, "Telemetry Time: %lu", telemetry_msg.time);
                     switch (telemetry_msg.which_variant) {
                         case meshtastic_Telemetry_device_metrics_tag:
-                            intOnTelemetryDevice(header, telemetry_msg.variant.device_metrics);
+                            intOnTelemetryDevice(header, telemetry_msg);
                             break;
                         case meshtastic_Telemetry_environment_metrics_tag:
                             intOnTelemetryEnvironment(header, telemetry_msg);
