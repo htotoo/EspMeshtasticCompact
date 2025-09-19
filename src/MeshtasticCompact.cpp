@@ -449,9 +449,9 @@ void MeshtasticCompact::intOnNodeInfo(MC_Header& header, meshtastic_User& user_m
     node_info.public_key_size = user_msg.public_key.size;
     node_info.role = user_msg.role;
     node_info.hw_model = user_msg.hw_model;
-
+    node_info.last_updated = hal->millis();
     nodeinfo_db.addOrUpdate(header.srcnode, node_info);  // if want ack, then exchange happened, but we got info too
-    nodeinfo.last_updated = hal->millis();
+
     bool needReply = (want_reply == true && !is_auto_full_node) && is_send_enabled;
     if (onNodeInfo) {
         onNodeInfo(header, node_info, needReply);
