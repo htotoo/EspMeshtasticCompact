@@ -40,7 +40,7 @@ class MeshtasticCompact {
     using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     using OnRaw = void (*)(const uint8_t* data, size_t len);
     using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position);
-    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_NodeInfo& nodeinfo);
+    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo);
     using OnNativeWaypointMessageCallback = void (*)(MC_Header& header, meshtastic_Waypoint& waypoint);
     using OnNativeTelemetryDeviceCallback = void (*)(MC_Header& header, meshtastic_DeviceMetrics& telemetry);
     using OnNativeTelemetryEnvironmentCallback = void (*)(MC_Header& header, meshtastic_EnvironmentMetrics& telemetry);

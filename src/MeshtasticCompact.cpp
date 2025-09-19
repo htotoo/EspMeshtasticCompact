@@ -625,7 +625,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                     node_info.hw_model = user_msg.hw_model;
                     intOnNodeInfo(header, node_info, decodedtmp.want_response);
                     if (onNativeNodeInfo) {
-                        onNativeNodeInfo(header, node_info);
+                        onNativeNodeInfo(header, user_msg);
                     }
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "meshtastic/mesh.pb.h"
+#include <string>
 
 enum class RadioType {
     SX1262,

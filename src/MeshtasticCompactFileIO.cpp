@@ -51,7 +51,7 @@ bool MeshtasticCompactFileIO::loadNodeDb(NodeInfoDB& db) {
     err = nvs_get_u32(handle, "fileio_ver", &fileio_ver);
     if (err != ESP_OK || fileio_ver != FILEIO_VERSION) {
         nvs_close(handle);
-        ESP_LOGI("MeshtasticCompactFileIO", "NVS fileio_ver mismatch or not found (found %u, expected %u)", fileio_ver, FILEIO_VERSION);
+        ESP_LOGI("MeshtasticCompactFileIO", "NVS fileio_ver mismatch or not found.");
         return false;
     }
 
