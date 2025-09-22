@@ -12,7 +12,7 @@
 #include "mbedtls/aes.h"
 #include <string>
 #include "meshtastic/mesh.pb.h"
-#include "MeshasticCompactStructs.hpp"
+#include "MeshtasticCompactStructs.hpp"
 #include <mutex>
 #include <condition_variable>
 #include <queue>

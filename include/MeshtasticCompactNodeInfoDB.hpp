@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <ctype.h>
 #include <string.h>
-#include "MeshasticCompactStructs.hpp"
+#include "MeshtasticCompactStructs.hpp"
 #include "esp_random.h"
 #include <vector>
 /**
