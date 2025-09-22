@@ -1,15 +1,16 @@
-version: "0.0.1"
+version: "0.0.3"
 description: "Meshtastic but as a library"
-url: "https://github.com/htotoo/EspMeshtasticCompact"
-repository: "https://github.com/htotoo/EspMeshtasticCompact"
-issues: "https://github.com/htotoo/EspMeshtasticCompact/issues"
+url: "https://github.com/htotoo/EspMeshCompact"
+repository: "https://github.com/htotoo/EspMeshCompact"
+issues: "https://github.com/htotoo/EspMeshCompact/issues"
 maintainers:
   - "HTotoo"
 dependencies:
   idf:
     version: ">=5.1.0"
   jgromes/radiolib:
-    version: ">=7.2.0"
+    version: ">=7.3.0"
 tags:
   - "meshtastic"
+  - "meshcore"
   - "lora"
