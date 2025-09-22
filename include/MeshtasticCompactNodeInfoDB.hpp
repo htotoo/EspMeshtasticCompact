@@ -18,7 +18,7 @@ class NodeInfoDB {
     // Iterator for NodeInfoDB
     class iterator {
        public:
-        iterator(MC_NodeInfo* nodeinfos, bool* valid, size_t idx)
+        iterator(MCT_NodeInfo* nodeinfos, bool* valid, size_t idx)
             : nodeinfos_(nodeinfos), valid_(valid), idx_(idx) {
             advance_to_valid();
         }
@@ -27,11 +27,11 @@ class NodeInfoDB {
             advance_to_valid();
             return *this;
         }
-        MC_NodeInfo& operator*() {
+        MCT_NodeInfo& operator*() {
             assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
             return nodeinfos_[idx_];
         }
-        MC_NodeInfo* operator->() {
+        MCT_NodeInfo* operator->() {
             assert(idx_ < MAX_NODES && "Attempted to dereference an end() or invalid iterator");
             return &nodeinfos_[idx_];
         }
@@ -42,7 +42,7 @@ class NodeInfoDB {
         void advance_to_valid() {
             while (idx_ < MAX_NODES && !valid_[idx_]) ++idx_;
         }
-        MC_NodeInfo* nodeinfos_;
+        MCT_NodeInfo* nodeinfos_;
         bool* valid_;
         size_t idx_;
     };
@@ -55,9 +55,9 @@ class NodeInfoDB {
      * If the index is out of bounds or not valid, returns nullptr.
      *
      * @param index
-     * @return MC_NodeInfo*
+     * @return MCT_NodeInfo*
      */
-    MC_NodeInfo* getByIndex(size_t index) {
+    MCT_NodeInfo* getByIndex(size_t index) {
         if (index < MAX_NODES && valid[index]) {
             return &nodeinfos[index];
         }
@@ -67,9 +67,9 @@ class NodeInfoDB {
     /**
      * @brief Get the Random Node object
      *
-     * @return MC_NodeInfo*
+     * @return MCT_NodeInfo*
      */
-    MC_NodeInfo* getRandomNode() {
+    MCT_NodeInfo* getRandomNode() {
         uint8_t cnt = 0;
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i]) {
@@ -98,7 +98,7 @@ class NodeInfoDB {
      * @param info
      * @return true When new node inserted.
      */
-    bool addOrUpdate(uint32_t node_id, const MC_NodeInfo& info) {
+    bool addOrUpdate(uint32_t node_id, const MCT_NodeInfo& info) {
         // Try to update existing
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
@@ -138,9 +138,9 @@ class NodeInfoDB {
      * @brief Returns a pointer to the node information for the given node_id.
      *
      * @param node_id
-     * @return MC_NodeInfo*
+     * @return MCT_NodeInfo*
      */
-    MC_NodeInfo* get(uint32_t node_id) {
+    MCT_NodeInfo* get(uint32_t node_id) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
                 return &nodeinfos[i];
@@ -184,7 +184,7 @@ class NodeInfoDB {
      * @return true Got position information for the node.
      * @return false Don't have position information for the node.
      */
-    bool getPosition(uint32_t node_id, MC_Position& out_position) const {
+    bool getPosition(uint32_t node_id, MCT_Position& out_position) const {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id && is_position_valid[i]) {
                 out_position = positions[i];
@@ -202,7 +202,7 @@ class NodeInfoDB {
      * @return true Successfully set the position for the node.
      * @return false Node with the given node_id not found or position not set.
      */
-    bool setPosition(uint32_t node_id, const MC_Position& position) {
+    bool setPosition(uint32_t node_id, const MCT_Position& position) {
         for (size_t i = 0; i < MAX_NODES; ++i) {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
                 positions[i] = position;
@@ -223,7 +223,7 @@ class NodeInfoDB {
             if (valid[i] && nodeinfos[i].node_id == node_id) {
                 is_position_valid[i] = false;
                 // Optionally clear position data:
-                positions[i] = MC_Position{};
+                positions[i] = MCT_Position{};
                 return;
             }
         }
@@ -260,8 +260,8 @@ class NodeInfoDB {
     }
 
    private:
-    MC_NodeInfo nodeinfos[MAX_NODES];
-    MC_Position positions[MAX_NODES];
+    MCT_NodeInfo nodeinfos[MAX_NODES];
+    MCT_Position positions[MAX_NODES];
     bool is_position_valid[MAX_NODES] = {};  // stores if the position is stored for the node
     bool valid[MAX_NODES] = {};              // stores if the index is taken or free
 };

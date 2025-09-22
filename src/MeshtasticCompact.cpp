@@ -255,7 +255,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
     MeshtasticCompact* mshcomp = static_cast<MeshtasticCompact*>(pvParameters);
     ESP_LOGI(pcTaskGetName(NULL), "Start");
     while (mshcomp->need_run) {
-        MC_OutQueueEntry entry = mshcomp->out_queue.pop();
+        MCT_OutQueueEntry entry = mshcomp->out_queue.pop();
 
         if (entry.header.srcnode == 0) {
             // Stop flag was set, exit the task
@@ -284,7 +284,7 @@ void MeshtasticCompact::task_send(void* pvParameters) {
             uint8_t encrypted_payload[256];
             bool aesenc = true;
             if (entry.encType == 0) {  // the auto enc method
-                MC_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
+                MCT_NodeInfo* dstnode = mshcomp->nodeinfo_db.get(entry.header.dstnode);
                 if (entry.header.chan_hash == 0 && entry.header.dstnode != 0xffffffff && dstnode && (dstnode->public_key_size == 16 || dstnode->public_key_size == 32)) {
                     bool all_zero = true;
                     for (size_t i = 0; i < dstnode->public_key_size; i++) {
@@ -415,15 +415,15 @@ bool MeshtasticCompact::RadioSendInit() {
     xTaskCreate(&task_send, "RadioSend", 1024 * 4, this, 5, NULL);
     return true;
 }
-void MeshtasticCompact::intOnMessage(MC_Header& header, MC_TextMessage& message) {
+void MeshtasticCompact::intOnMessage(MCT_Header& header, MCT_TextMessage& message) {
     // we won't cache, it is the upper layer's thing.
     if (onMessage) {
         onMessage(header, message);
     };
 }
 
-void MeshtasticCompact::intOnPositionMessage(MC_Header& header, meshtastic_Position& position_msg, bool want_reply) {
-    MC_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
+void MeshtasticCompact::intOnPositionMessage(MCT_Header& header, meshtastic_Position& position_msg, bool want_reply) {
+    MCT_Position position = {.latitude_i = position_msg.latitude_i, .longitude_i = position_msg.longitude_i, .altitude = position_msg.altitude, .ground_speed = position_msg.ground_speed, .sats_in_view = position_msg.sats_in_view, .location_source = (uint8_t)position_msg.location_source, .has_latitude_i = position_msg.has_latitude_i, .has_longitude_i = position_msg.has_longitude_i, .has_altitude = position_msg.has_altitude, .has_ground_speed = position_msg.has_ground_speed};
     if (position.has_latitude_i && position.has_longitude_i) nodeinfo_db.setPosition(header.srcnode, position);  // not saved the request, since that is mostly empty
     bool needReply = (want_reply == true && !is_auto_full_node && is_send_enabled);
     if (onPositionMessage) {
@@ -438,8 +438,8 @@ void MeshtasticCompact::intOnPositionMessage(MC_Header& header, meshtastic_Posit
     }
 }
 
-void MeshtasticCompact::intOnNodeInfo(MC_Header& header, meshtastic_User& user_msg, bool want_reply) {
-    MC_NodeInfo node_info;
+void MeshtasticCompact::intOnNodeInfo(MCT_Header& header, meshtastic_User& user_msg, bool want_reply) {
+    MCT_NodeInfo node_info;
     node_info.node_id = header.srcnode;  // srcnode is the node ID
     memcpy(node_info.id, user_msg.id, sizeof(node_info.id));
     memcpy(node_info.short_name, user_msg.short_name, sizeof(node_info.short_name));
@@ -464,8 +464,8 @@ void MeshtasticCompact::intOnNodeInfo(MC_Header& header, meshtastic_User& user_m
         SendMyNodeInfo(header.srcnode);
     }
 }
-void MeshtasticCompact::intOnWaypointMessage(MC_Header& header, meshtastic_Waypoint& waypoint_msg) {
-    MC_Waypoint waypoint;
+void MeshtasticCompact::intOnWaypointMessage(MCT_Header& header, meshtastic_Waypoint& waypoint_msg) {
+    MCT_Waypoint waypoint;
     waypoint.latitude_i = waypoint_msg.latitude_i;
     waypoint.longitude_i = waypoint_msg.longitude_i;
     memcpy(waypoint.name, waypoint_msg.name, sizeof(waypoint.name));
@@ -484,8 +484,8 @@ void MeshtasticCompact::intOnWaypointMessage(MC_Header& header, meshtastic_Waypo
     }
 }
 
-void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, _meshtastic_Telemetry& telemetry_msg) {
-    MC_Telemetry_Device device_metrics;
+void MeshtasticCompact::intOnTelemetryDevice(MCT_Header& header, _meshtastic_Telemetry& telemetry_msg) {
+    MCT_Telemetry_Device device_metrics;
     device_metrics.battery_level = telemetry_msg.variant.device_metrics.battery_level;
     device_metrics.uptime_seconds = telemetry_msg.variant.device_metrics.uptime_seconds;
     device_metrics.voltage = telemetry_msg.variant.device_metrics.voltage;
@@ -502,8 +502,8 @@ void MeshtasticCompact::intOnTelemetryDevice(MC_Header& header, _meshtastic_Tele
     }
 }
 
-void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, _meshtastic_Telemetry& telemetry_msg) {
-    MC_Telemetry_Environment environment_metrics;
+void MeshtasticCompact::intOnTelemetryEnvironment(MCT_Header& header, _meshtastic_Telemetry& telemetry_msg) {
+    MCT_Telemetry_Environment environment_metrics;
     environment_metrics.temperature = telemetry_msg.variant.environment_metrics.temperature;
     environment_metrics.humidity = telemetry_msg.variant.environment_metrics.relative_humidity;
     environment_metrics.pressure = telemetry_msg.variant.environment_metrics.barometric_pressure;
@@ -520,8 +520,8 @@ void MeshtasticCompact::intOnTelemetryEnvironment(MC_Header& header, _meshtastic
     }
 }
 
-void MeshtasticCompact::intOnTraceroute(MC_Header& header, meshtastic_RouteDiscovery& route_discovery_msg) {
-    MC_RouteDiscovery route_discovery;
+void MeshtasticCompact::intOnTraceroute(MCT_Header& header, meshtastic_RouteDiscovery& route_discovery_msg) {
+    MCT_RouteDiscovery route_discovery;
     route_discovery.route_count = route_discovery_msg.route_count;
     route_discovery.snr_towards_count = route_discovery_msg.snr_towards_count;
     route_discovery.route_back_count = route_discovery_msg.route_back_count;
@@ -608,7 +608,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             ESP_LOGE(TAG, "Received packet too short: %d bytes", len);
             return false;
         }
-        MC_Header header;
+        MCT_Header header;
         header.rssi = mshcomp->rssi;
         header.snr = mshcomp->snr;
 
@@ -648,7 +648,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 1) {
                 ESP_LOGI(TAG, "Received a message packet");
                 // payload: utf8 text
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_TEXT};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 2) {
                 ESP_LOGI(TAG, "Received a remote hardware packet");
@@ -696,7 +696,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // payload: utf8 text with Unishox2 Compression
                 char uncompressed_data[256] = {0};
                 size_t uncompressed_size = unishox2_decompress((const char*)&decodedtmp.payload.bytes, decodedtmp.payload.size, uncompressed_data, sizeof(uncompressed_data), USX_PSET_DFLT);
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), (uint8_t)ret, MC_MESSAGE_TYPE_TEXT};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(uncompressed_data), uncompressed_size), (uint8_t)ret, MCT_MESSAGE_TYPE_TEXT};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 8) {
                 ESP_LOGI(TAG, "Received a waypoint packet");
@@ -710,12 +710,12 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 10) {
                 ESP_LOGI(TAG, "Received a detection sensor packet");
                 // payload: utf8 text
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_DETECTOR_SENSOR};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_DETECTOR_SENSOR};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 11) {
                 ESP_LOGI(TAG, "Received an alert packet");
                 // payload: utf8 text
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_ALERT};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_ALERT};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 12) {
                 ESP_LOGI(TAG, "Received a key verification packet");
@@ -729,7 +729,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 32) {
                 ESP_LOGI(TAG, "Received a reply packet");
                 // payload: ASCII Plaintext //TODO determine the in/out part and send reply if needed
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_PING};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_PING};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 34) {
                 ESP_LOGI(TAG, "Received a paxcounter packet");
@@ -737,7 +737,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 64) {
                 ESP_LOGI(TAG, "Received a serial packet");
                 // payload: uart rx/tx data
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_UART};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_UART};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 65) {
                 ESP_LOGI(TAG, "Received a STORE_FORWARD_APP  packet");
@@ -745,7 +745,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
             } else if (decodedtmp.portnum == 66) {
                 ESP_LOGI(TAG, "Received a RANGE_TEST_APP  packet");
                 // payload: ascii text
-                MC_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MC_MESSAGE_TYPE_RANGE_TEST};
+                MCT_TextMessage msg = {std::string(reinterpret_cast<const char*>(decodedtmp.payload.bytes), decodedtmp.payload.size), (uint8_t)ret, MCT_MESSAGE_TYPE_RANGE_TEST};
                 intOnMessage(header, msg);
             } else if (decodedtmp.portnum == 67) {
                 ESP_LOGI(TAG, "Received a TELEMETRY_APP   packet");
@@ -858,7 +858,7 @@ size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsiz
     }
 }
 
-int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MC_Header& header) {
+int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MCT_Header& header) {
     uint8_t decrypted_data[srcbufsize] = {0};
     memset(dest_struct, 0, dest_struct_size);
     // 1st.
@@ -885,10 +885,10 @@ int16_t MeshtasticCompact::try_decode_root_packet(const uint8_t* srcbuf, size_t 
 
 #pragma region PacketBuilders
 
-void MeshtasticCompact::send_ack(MC_Header& header) {
+void MeshtasticCompact::send_ack(MCT_Header& header) {
     if (!is_send_enabled) return;
     if (is_in_stealth_mode) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = header.srcnode;  // Send ACK to the source node
     entry.header.srcnode = my_nodeinfo.node_id;
     entry.header.packet_id = header.packet_id;  // Use the same packet ID for ACK
@@ -909,11 +909,11 @@ void MeshtasticCompact::send_ack(MC_Header& header) {
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendTracerouteReply(MC_Header& header, MC_RouteDiscovery& route_discovery) {
+void MeshtasticCompact::SendTracerouteReply(MCT_Header& header, MCT_RouteDiscovery& route_discovery) {
     if (!is_send_enabled) return;
     if (is_in_stealth_mode) return;
 
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = header.dstnode;
     entry.header.srcnode = header.srcnode;
     entry.header.packet_id = header.packet_id;
@@ -955,7 +955,7 @@ void MeshtasticCompact::SendTraceroute(uint32_t dest_node_id, uint8_t chan, uint
     if (!is_send_enabled) return;
     if (is_in_stealth_mode) return;
 
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dest_node_id;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -978,9 +978,9 @@ void MeshtasticCompact::SendTraceroute(uint32_t dest_node_id, uint8_t chan, uint
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bool exchange) {
+void MeshtasticCompact::SendNodeInfo(MCT_NodeInfo& nodeinfo, uint32_t dstnode, bool exchange) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = nodeinfo.node_id;
     entry.header.packet_id = 0;
@@ -1023,9 +1023,9 @@ void MeshtasticCompact::SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode, bo
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnode, uint8_t chan, MC_MESSAGE_TYPE type, uint32_t sender_node_id) {
+void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnode, uint8_t chan, MCT_MESSAGE_TYPE type, uint32_t sender_node_id) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1050,7 +1050,7 @@ void MeshtasticCompact::SendTextMessage(const std::string& text, uint32_t dstnod
 
 void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan, uint32_t sender_node_id) {
     if (!is_send_enabled) return;  // todo check if this works or deletes the position
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dest_node_id;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1073,9 +1073,9 @@ void MeshtasticCompact::SendRequestPositionInfo(uint32_t dest_node_id, uint8_t c
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+void MeshtasticCompact::SendPositionMessage(MCT_Position& position, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1111,9 +1111,9 @@ void MeshtasticCompact::SendPositionMessage(MC_Position& position, uint32_t dstn
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+void MeshtasticCompact::SendWaypointMessage(MCT_Waypoint& waypoint, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1144,9 +1144,9 @@ void MeshtasticCompact::SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstn
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+void MeshtasticCompact::SendTelemetryDevice(MCT_Telemetry_Device& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1180,9 +1180,9 @@ void MeshtasticCompact::SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint
     out_queue.push(entry);
 }
 
-void MeshtasticCompact::SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
+void MeshtasticCompact::SendTelemetryEnvironment(MCT_Telemetry_Environment& telemetry, uint32_t dstnode, uint8_t chan, uint32_t sender_node_id) {
     if (!is_send_enabled) return;
-    MC_OutQueueEntry entry;
+    MCT_OutQueueEntry entry;
     entry.header.dstnode = dstnode;
     entry.header.srcnode = sender_node_id == 0 ? my_nodeinfo.node_id : sender_node_id;
     entry.header.packet_id = 0;
@@ -1224,7 +1224,7 @@ inline uint8_t MeshtasticCompact::getLastByteOfNodeNum(uint32_t num) {
 
 #pragma region MeshtasticCompactHelpers
 
-void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo* nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model) {
+void MeshtasticCompactHelpers::NodeInfoBuilder(MCT_NodeInfo* nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model) {
     nodeinfo->node_id = node_id;
     if (long_name.empty()) {
         char hex_part[7];
@@ -1256,7 +1256,7 @@ void MeshtasticCompactHelpers::NodeInfoBuilder(MC_NodeInfo* nodeinfo, uint32_t n
     nodeinfo->hw_model = hw_model;  // Set hardware model
 }
 
-void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude, uint32_t speed, uint32_t sats_in_view) {
+void MeshtasticCompactHelpers::PositionBuilder(MCT_Position& position, float latitude, float longitude, int32_t altitude, uint32_t speed, uint32_t sats_in_view) {
     position.latitude_i = static_cast<int32_t>(latitude * 10e6);
     position.longitude_i = static_cast<int32_t>(longitude * 10e6);
     position.altitude = altitude;
@@ -1265,7 +1265,7 @@ void MeshtasticCompactHelpers::PositionBuilder(MC_Position& position, float lati
     position.location_source = 0;
 }
 
-void MeshtasticCompactHelpers::TelemetryDeviceBuilder(MC_Telemetry_Device& telemetry, uint32_t uptime_seconds, float voltage, float battery_level, float channel_utilization) {
+void MeshtasticCompactHelpers::TelemetryDeviceBuilder(MCT_Telemetry_Device& telemetry, uint32_t uptime_seconds, float voltage, float battery_level, float channel_utilization) {
     telemetry.uptime_seconds = uptime_seconds;
     telemetry.voltage = voltage;
     telemetry.battery_level = battery_level;
@@ -1276,7 +1276,7 @@ void MeshtasticCompactHelpers::TelemetryDeviceBuilder(MC_Telemetry_Device& telem
     telemetry.has_channel_utilization = (channel_utilization >= 0.0f);
 }
 
-void MeshtasticCompactHelpers::TelemetryEnvironmentBuilder(MC_Telemetry_Environment& telemetry, float temperature, float humidity, float pressure, float lux) {
+void MeshtasticCompactHelpers::TelemetryEnvironmentBuilder(MCT_Telemetry_Environment& telemetry, float temperature, float humidity, float pressure, float lux) {
     telemetry.temperature = temperature;
     telemetry.humidity = humidity;
     telemetry.pressure = pressure;
@@ -1287,7 +1287,7 @@ void MeshtasticCompactHelpers::TelemetryEnvironmentBuilder(MC_Telemetry_Environm
     telemetry.has_lux = (lux >= 0.0f);
 }
 
-void MeshtasticCompactHelpers::WaypointBuilder(MC_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire, uint32_t icon) {
+void MeshtasticCompactHelpers::WaypointBuilder(MCT_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire, uint32_t icon) {
     waypoint.latitude_i = static_cast<int32_t>(latitude * 10e6);
     waypoint.longitude_i = static_cast<int32_t>(longitude * 10e6);
     strncpy(waypoint.name, name.c_str(), sizeof(waypoint.name) - 1);

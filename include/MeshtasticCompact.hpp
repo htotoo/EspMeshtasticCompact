@@ -31,19 +31,19 @@ class MeshtasticCompact {
     bool RadioInit(RadioType radio_type, Radio_PINS& radio_pins, LoraConfig& lora_config);  // Initializes the radio with the given configuration and pins
 
     // callbacks
-    using OnMessageCallback = void (*)(MC_Header& header, MC_TextMessage& message);
-    using OnPositionMessageCallback = void (*)(MC_Header& header, MC_Position& position, bool needReply);
-    using OnNodeInfoCallback = void (*)(MC_Header& header, MC_NodeInfo& nodeinfo, bool needReply, bool newNode);
-    using OnWaypointMessageCallback = void (*)(MC_Header& header, MC_Waypoint& waypoint);
-    using OnTelemetryDeviceCallback = void (*)(MC_Header& header, MC_Telemetry_Device& telemetry);
-    using OnTelemetryEnvironmentCallback = void (*)(MC_Header& header, MC_Telemetry_Environment& telemetry);
-    using OnTracerouteCallback = void (*)(MC_Header& header, MC_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
+    using OnMessageCallback = void (*)(MCT_Header& header, MCT_TextMessage& message);
+    using OnPositionMessageCallback = void (*)(MCT_Header& header, MCT_Position& position, bool needReply);
+    using OnNodeInfoCallback = void (*)(MCT_Header& header, MCT_NodeInfo& nodeinfo, bool needReply, bool newNode);
+    using OnWaypointMessageCallback = void (*)(MCT_Header& header, MCT_Waypoint& waypoint);
+    using OnTelemetryDeviceCallback = void (*)(MCT_Header& header, MCT_Telemetry_Device& telemetry);
+    using OnTelemetryEnvironmentCallback = void (*)(MCT_Header& header, MCT_Telemetry_Environment& telemetry);
+    using OnTracerouteCallback = void (*)(MCT_Header& header, MCT_RouteDiscovery& route, bool for_me, bool is_reply, bool need_reply);
     using OnRaw = void (*)(const uint8_t* data, size_t len);
-    using OnNativePositionMessageCallback = void (*)(MC_Header& header, meshtastic_Position& position, bool needReply);
-    using OnNativeNodeInfoCallback = void (*)(MC_Header& header, meshtastic_User& nodeinfo, bool needReply, bool newNode);
-    using OnNativeWaypointMessageCallback = void (*)(MC_Header& header, meshtastic_Waypoint& waypoint);
-    using OnNativeTelemetryDeviceCallback = void (*)(MC_Header& header, meshtastic_DeviceMetrics& telemetry);
-    using OnNativeTelemetryEnvironmentCallback = void (*)(MC_Header& header, meshtastic_EnvironmentMetrics& telemetry);
+    using OnNativePositionMessageCallback = void (*)(MCT_Header& header, meshtastic_Position& position, bool needReply);
+    using OnNativeNodeInfoCallback = void (*)(MCT_Header& header, meshtastic_User& nodeinfo, bool needReply, bool newNode);
+    using OnNativeWaypointMessageCallback = void (*)(MCT_Header& header, meshtastic_Waypoint& waypoint);
+    using OnNativeTelemetryDeviceCallback = void (*)(MCT_Header& header, meshtastic_DeviceMetrics& telemetry);
+    using OnNativeTelemetryEnvironmentCallback = void (*)(MCT_Header& header, meshtastic_EnvironmentMetrics& telemetry);
 
     void setOnWaypointMessage(OnWaypointMessageCallback cb) { onWaypointMessage = cb; }
     void setOnNodeInfoMessage(OnNodeInfoCallback cb) { onNodeInfo = cb; }
@@ -111,27 +111,27 @@ class MeshtasticCompact {
      * @param long_name
      */
     void setMyNames(const char* short_name, const char* long_name);
-    MC_NodeInfo* getMyNodeInfo() {
+    MCT_NodeInfo* getMyNodeInfo() {
         return &my_nodeinfo;
     }
 
     void set_ok_to_mqtt(bool ok) { ok_to_mqtt = ok; }  // if true, sets the flag in the header
 
     // packet senders
-    void SendNodeInfo(MC_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff, bool exchange = false);
+    void SendNodeInfo(MCT_NodeInfo& nodeinfo, uint32_t dstnode = 0xffffffff, bool exchange = false);
     void SendMyNodeInfo(uint32_t dstnode = 0xffffffff, bool exchange = false) {
         SendNodeInfo(my_nodeinfo, dstnode, exchange);
     }
-    void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MC_MESSAGE_TYPE type = MC_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
-    void SendPositionMessage(MC_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTextMessage(const std::string& text, uint32_t dstnode = 0xffffffff, uint8_t chan = 0, MCT_MESSAGE_TYPE type = MCT_MESSAGE_TYPE_TEXT, uint32_t sender_node_id = 0);
+    void SendPositionMessage(MCT_Position& position, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
     void SendMyPosition(uint32_t dstnode = 0xffffffff, uint8_t chan = 8) {
         SendPositionMessage(my_position, dstnode, chan);
     }
     void SendRequestPositionInfo(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
-    void SendWaypointMessage(MC_Waypoint& waypoint, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
-    void SendTelemetryDevice(MC_Telemetry_Device& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
-    void SendTelemetryEnvironment(MC_Telemetry_Environment& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
-    void SendTracerouteReply(MC_Header& header, MC_RouteDiscovery& route_discovery);
+    void SendWaypointMessage(MCT_Waypoint& waypoint, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTelemetryDevice(MCT_Telemetry_Device& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTelemetryEnvironment(MCT_Telemetry_Environment& telemetry, uint32_t dstnode = 0xffffffff, uint8_t chan = 8, uint32_t sender_node_id = 0);
+    void SendTracerouteReply(MCT_Header& header, MCT_RouteDiscovery& route_discovery);
     void SendTraceroute(uint32_t dest_node_id, uint8_t chan = 8, uint32_t sender_node_id = 0);
 
     // Radio settings on the fly
@@ -150,28 +150,28 @@ class MeshtasticCompact {
 
     NodeInfoDB nodeinfo_db;          // NodeInfo database.
     MeshtasticCompactRouter router;  // Router for message deduplication. Set MyId if you changed that. Also you can disable exclude self option
-    MC_Position my_position;         // My position, used for auto replies (when enabled) on position requests. Or when you call SendMyPosition()
+    MCT_Position my_position;        // My position, used for auto replies (when enabled) on position requests. Or when you call SendMyPosition()
    private:
     RadioType radio_type;
     bool RadioListen();    // inits the listening thread for the radio
     bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
     // handlers
-    void intOnMessage(MC_Header& header, MC_TextMessage& message);                                 // Called when got any text based messages
-    void intOnPositionMessage(MC_Header& header, meshtastic_Position& position, bool want_reply);  // Called on position messages
-    void intOnNodeInfo(MC_Header& header, meshtastic_User& user_msg, bool want_reply);             // Called on node info messages
-    void intOnWaypointMessage(MC_Header& header, meshtastic_Waypoint& waypoint_msg);               // Called on waypoint messages
-    void intOnTelemetryDevice(MC_Header& header, _meshtastic_Telemetry& telemetry);                // Called on telemetry device messages
-    void intOnTelemetryEnvironment(MC_Header& header, _meshtastic_Telemetry& telemetry_msg);       // Called on telemetry environment messages
-    void intOnTraceroute(MC_Header& header, meshtastic_RouteDiscovery& route_discovery_msg);       // Called on traceroute messages
+    void intOnMessage(MCT_Header& header, MCT_TextMessage& message);                                // Called when got any text based messages
+    void intOnPositionMessage(MCT_Header& header, meshtastic_Position& position, bool want_reply);  // Called on position messages
+    void intOnNodeInfo(MCT_Header& header, meshtastic_User& user_msg, bool want_reply);             // Called on node info messages
+    void intOnWaypointMessage(MCT_Header& header, meshtastic_Waypoint& waypoint_msg);               // Called on waypoint messages
+    void intOnTelemetryDevice(MCT_Header& header, _meshtastic_Telemetry& telemetry);                // Called on telemetry device messages
+    void intOnTelemetryEnvironment(MCT_Header& header, _meshtastic_Telemetry& telemetry_msg);       // Called on telemetry environment messages
+    void intOnTraceroute(MCT_Header& header, meshtastic_RouteDiscovery& route_discovery_msg);       // Called on traceroute messages
 
     // mesh network minimum functionality
 
-    void send_ack(MC_Header& header);  // sends an ack packet to the source node based on the header
+    void send_ack(MCT_Header& header);  // sends an ack packet to the source node based on the header
 
     // decoding
     int16_t ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
 
-    int16_t try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MC_Header& header);                 // the simple packet decoder for any type of encrypted messages.
+    int16_t try_decode_root_packet(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct, size_t dest_struct_size, MCT_Header& header);                // the simple packet decoder for any type of encrypted messages.
     bool pb_decode_from_bytes(const uint8_t* srcbuf, size_t srcbufsize, const pb_msgdesc_t* fields, void* dest_struct);                                                                  // decode the protobuf message from bytes
     size_t pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsize, const pb_msgdesc_t* fields, const void* src_struct);                                                                 // encode the protobuf message to bytes
     static void task_listen(void* pvParameters);                                                                                                                                         // Task for listening to the radio and processing incoming packets
@@ -187,7 +187,7 @@ class MeshtasticCompact {
 
     bool ok_to_mqtt = true;  // set or don't set the flag.
 
-    MC_NodeInfo my_nodeinfo;  // My node info. Used in many places. Set it carefully.
+    MCT_NodeInfo my_nodeinfo;  // My node info. Used in many places. Set it carefully.
 
     EspHal* hal;           // = new EspHal(9, 11, 10);
     PhysicalLayer* radio;  // SX1262 radio = new Module(hal, 8, 14, 12, 13);
@@ -229,11 +229,11 @@ class MeshtasticCompact {
  */
 class MeshtasticCompactHelpers {
    public:
-    static void NodeInfoBuilder(MC_NodeInfo* nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model);
-    static void PositionBuilder(MC_Position& position, float latitude, float longitude, int32_t altitude = 0, uint32_t speed = 0, uint32_t sats_in_view = 0);
-    static void TelemetryDeviceBuilder(MC_Telemetry_Device& telemetry, uint32_t uptime_seconds = 0, float voltage = 0.0f, float battery_level = -1.0f, float channel_utilization = -1.0f);
-    static void TelemetryEnvironmentBuilder(MC_Telemetry_Environment& telemetry, float temperature = -10000.0f, float humidity = -1.0f, float pressure = -1.0f, float lux = -1.0f);
-    static void WaypointBuilder(MC_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire = 1, uint32_t icon = 0);
+    static void NodeInfoBuilder(MCT_NodeInfo* nodeinfo, uint32_t node_id, std::string& short_name, std::string& long_name, uint8_t hw_model);
+    static void PositionBuilder(MCT_Position& position, float latitude, float longitude, int32_t altitude = 0, uint32_t speed = 0, uint32_t sats_in_view = 0);
+    static void TelemetryDeviceBuilder(MCT_Telemetry_Device& telemetry, uint32_t uptime_seconds = 0, float voltage = 0.0f, float battery_level = -1.0f, float channel_utilization = -1.0f);
+    static void TelemetryEnvironmentBuilder(MCT_Telemetry_Environment& telemetry, float temperature = -10000.0f, float humidity = -1.0f, float pressure = -1.0f, float lux = -1.0f);
+    static void WaypointBuilder(MCT_Waypoint& waypoint, uint32_t id, float latitude, float longitude, std::string name, std::string description, uint32_t expire = 1, uint32_t icon = 0);
 };
 
 #endif  // MESHTASTIC_COMPACT_H
