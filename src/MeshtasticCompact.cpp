@@ -670,6 +670,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Position");
                 }
+                pb_release(&meshtastic_Position_msg, &position_msg);
             } else if (decodedtmp.portnum == 4) {
                 // payload: protobuf User
                 meshtastic_User user_msg = {};
@@ -678,6 +679,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode User");
                 }
+                pb_release(&meshtastic_User_msg, &user_msg);
             } else if (decodedtmp.portnum == 5) {
                 ESP_LOGI(TAG, "Received a routing packet");
                 // payload: protobuf Routing
@@ -687,6 +689,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Routing");
                 }
+                pb_release(&meshtastic_Routing_msg, &routing_msg);
             } else if (decodedtmp.portnum == 6) {
                 ESP_LOGI(TAG, "Received an admin packet");
                 // payload: protobuf AdminMessage
@@ -707,6 +710,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Waypoint");
                 }
+                pb_release(&meshtastic_Waypoint_msg, &waypoint_msg);
             } else if (decodedtmp.portnum == 10) {
                 ESP_LOGI(TAG, "Received a detection sensor packet");
                 // payload: utf8 text
@@ -726,6 +730,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode KeyVerification");
                 }
+                pb_release(&meshtastic_KeyVerification_msg, &key_verification_msg);
             } else if (decodedtmp.portnum == 32) {
                 ESP_LOGI(TAG, "Received a reply packet");
                 // payload: ASCII Plaintext //TODO determine the in/out part and send reply if needed
@@ -781,6 +786,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode Telemetry");
                 }
+                pb_release(&meshtastic_Telemetry_msg, &telemetry_msg);
             } else if (decodedtmp.portnum == 70) {
                 ESP_LOGI(TAG, "Received a TRACEROUTE_APP    packet");
                 // payload: Protobuf RouteDiscovery
@@ -792,9 +798,14 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 } else {
                     ESP_LOGE(TAG, "Failed to decode RouteDiscovery");
                 }
+                pb_release(&meshtastic_RouteDiscovery_msg, &route_discovery_msg);
             } else if (decodedtmp.portnum == 71) {
-                ESP_LOGI(TAG, "Received a NEIGHBORINFO_APP   packet");
-                // payload: Protobuf ?
+                meshtastic_NeighborInfo neighbor_info_msg = {};
+                if (pb_decode_from_bytes(decodedtmp.payload.bytes, decodedtmp.payload.size, &meshtastic_NeighborInfo_msg, &neighbor_info_msg)) {
+                } else {
+                    // safe_printf("Failed to decode NeighborInfo");
+                }
+                pb_release(&meshtastic_NeighborInfo_msg, &neighbor_info_msg);
             } else {
                 ESP_LOGI(TAG, "Received an unhandled portnum: %d", decodedtmp.portnum);
             }
@@ -802,6 +813,7 @@ int16_t MeshtasticCompact::ProcessPacket(uint8_t* data, int len, MeshtasticCompa
                 // send_ack(header);
             }
         }
+        pb_release(&meshtastic_Data_msg, &decodedtmp);
         return ret;
     }
     return false;
@@ -852,6 +864,7 @@ size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsiz
     pb_ostream_t stream = pb_ostream_from_buffer(destbuf, destbufsize);
     if (!pb_encode(&stream, fields, src_struct)) {
         // printf("Panic: can't encode protobuf reason='%s'", PB_GET_ERROR(&stream));
+        pb_release(fields, dest_struct);
         return 0;
     } else {
         return stream.bytes_written;
