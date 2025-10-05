@@ -392,5 +392,17 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
     for (const auto& hop : header.path) {
         ESP_LOGI(TAG, "  Hop: %ud", hop);
     }
+
+    if (header.get_payload_type() == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ADVERT) {
+        MCC_NODEINFO nodeinfo;
+        nodeinfo.parse(data, pos, len);
+        ESP_LOGI(TAG, "timestamp=%lu, flags=0x%02x", nodeinfo.timestamp, nodeinfo.flags);
+        if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_LOCATION) {
+            ESP_LOGI(TAG, ", latitude_i=%lu, longitude_i=%lu", nodeinfo.latitude_i, nodeinfo.longitude_i);
+        }
+        if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_NAME) {
+            ESP_LOGI(TAG, ", name=%s", nodeinfo.name.c_str());
+        }
+    }
     return 0;
 }
