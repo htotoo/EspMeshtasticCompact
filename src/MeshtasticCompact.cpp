@@ -864,7 +864,6 @@ size_t MeshtasticCompact::pb_encode_to_bytes(uint8_t* destbuf, size_t destbufsiz
     pb_ostream_t stream = pb_ostream_from_buffer(destbuf, destbufsize);
     if (!pb_encode(&stream, fields, src_struct)) {
         // printf("Panic: can't encode protobuf reason='%s'", PB_GET_ERROR(&stream));
-        pb_release(fields, dest_struct);
         return 0;
     } else {
         return stream.bytes_written;
