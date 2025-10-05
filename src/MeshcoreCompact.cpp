@@ -392,8 +392,9 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
     for (const auto& hop : header.path) {
         ESP_LOGI(TAG, "  Hop: %ud", hop);
     }
+    MCC_PAYLOAD_TYPE plt = header.get_payload_type();
 
-    if (header.get_payload_type() == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ADVERT) {
+    if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ADVERT) {
         MCC_NODEINFO nodeinfo;
         nodeinfo.parse(data, pos, len);
         ESP_LOGI(TAG, "timestamp=%lu, flags=0x%02x", nodeinfo.timestamp, nodeinfo.flags);
@@ -403,6 +404,85 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
         if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_NAME) {
             ESP_LOGI(TAG, ", name=%s", nodeinfo.name.c_str());
         }
+        return 1;
+    }
+
+    if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ACK) {
+        uint32_t crc = 0;
+        if (len >= pos + 4) {
+            crc = *((uint32_t*)&data[pos]);
+            ESP_LOGI(TAG, "ACK for CRC=0x%08" PRIx32, crc);
+            return 1;
+        }
+    }
+
+    if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_PATH || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_REQ || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_RESPONSE || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_TXT_MSG) {
+        uint8_t dst_hash = *((uint8_t*)&data[pos++]);
+        uint8_t src_hash = *((uint8_t*)&data[pos++]);
+        uint16_t mac = *((uint16_t*)&data[pos]);
+        pos += 2;
+        if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_PATH) {
+            ESP_LOGI(TAG, "PATH packet:NIY");
+            return 0;
+        }
+        if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_REQ) {
+            // timestamp 4 byte
+            uint32_t timestamp = *((uint32_t*)&data[pos]);
+            pos += 4;
+            uint8_t request_type = data[pos++];
+            ESP_LOGI(TAG, "REQ packet:NIY");
+            return 0;
+        }
+        if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_RESPONSE) {
+            // timestamp 4 byte
+            uint32_t tag = *((uint32_t*)&data[pos]);
+            pos += 4;
+            ESP_LOGI(TAG, "RESP packet:NIY");
+            return 0;
+        }
+        if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_TXT_MSG) {
+            // timestamp 4 byte
+            uint32_t timestamp = *((uint32_t*)&data[pos]);
+            pos += 4;
+            uint8_t msg_flags = data[pos++];
+            uint8_t msg_attempts = msg_flags & 0x03;
+            msg_flags = msg_flags >> 2;
+            if (msg_flags == 2) {
+                // signed_plaintext. remove the first 4 bytes: first four bytes is sender pubkey prefix, followed by plain text message
+                pos += 4;
+            }
+            uint16_t msg_len = len - pos;
+            std::string msg = std::string((const char*)&data[pos], msg_len);
+            ESP_LOGI(TAG, "TXT_MSG packet: timestamp=%lu, flags=0x%02x, msg_len=%u, msg=%s", timestamp, msg_flags, msg_len, msg.c_str());
+            return 1;
+            /*
+            Received packet of length 38: 09 00 48 AC A0 13 C8 09 C2 36 BF F6 CC 78 B2 35 18 37 75 7D FC 9B 61 F2 0E 41 15 20 4B 52 C0 B2 55 DF 8A 8B E7 65
+I (86779) MeshcoreCompact: Received packet: route_type=1, payload_type=2, addr_format=0, transport_codes=0x00000000, path_length=0
+I (86799) MeshcoreCompact: Path:
+I (86799) MeshcoreCompact: TXT_MSG packet: timestamp=918686152, flags=0xbf, msg_len=27, msg=��x�57u}��a�A KR��Uߊ��e
+Received packet of length 38: 09 00 48 AC 0D 5B 7D C7 81 BF CF 6E 4A 32 00 B8 6A 3E DE E9 F5 B2 61 F2 0E 41 15 20 4B 52 C0 B2 55 DF 8A 8B E7 65
+I (96189) MeshcoreCompact: Received packet: route_type=1, payload_type=2, addr_format=0, transport_codes=0x00000000, path_length=0
+I (96209) MeshcoreCompact: Path:
+I (96209) MeshcoreCompact: TXT_MSG packet: timestamp=3212953469, flags=0xcf, msg_len=27, msg=nJ2
+Received packet of length 38: 09 00 48 AC EC D0 0E 15 8C 29 CC 1F AE C7 C8 58 83 A3 CF 5E 39 0F 61 F2 0E 41 15 20 4B 52 C0 B2 55 DF 8A 8B E7 65
+I (105999) MeshcoreCompact: Received packet: route_type=1, payload_type=2, addr_format=0, transport_codes=0x00000000, path_length=0
+I (106019) MeshcoreCompact: Path:
+I (106019) MeshcoreCompact: TXT_MSG packet: timestamp=697046286, flags=0xcc, msg_len=27, msg=���X���^9a�A KR��Uߊ��e
+*/
+        }
+    }
+
+    if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ANON_REQ) {
+        ESP_LOGI(TAG, "PAYLOAD_TYPE_ANON_REQ NIY");
+        return 0;
+    }
+    if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_GRP_TXT) {
+        uint8_t chan_hash = data[pos++];
+        uint16_t mac = *((uint16_t*)&data[pos]);
+        pos += 2;
+        // text: encrypted
+        ESP_LOGI(TAG, "PAYLOAD_TYPE_GRP_TXT NIY");
+        return 0;
     }
     return 0;
 }
