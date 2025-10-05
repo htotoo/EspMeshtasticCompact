@@ -419,32 +419,42 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
     if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_PATH || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_REQ || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_RESPONSE || plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_TXT_MSG) {
         uint8_t dst_hash = *((uint8_t*)&data[pos++]);
         uint8_t src_hash = *((uint8_t*)&data[pos++]);
-        uint16_t mac = *((uint16_t*)&data[pos]);
-        pos += 2;
+        uint8_t* macanddata = &data[pos];
+        uint8_t datadec[MAX_PACKET_PAYLOAD];
+        // todo foreach peer list with that dst hash, and check for secret data if i can decrypt with it.
+        uint8_t secret[PUB_KEY_SIZE] = {0};  // 32 bytes
+        int lenn = MACThenDecrypt(secret, datadec, macanddata, len - pos);
+        if (lenn > 0) {
+            ESP_LOGI(TAG, "Decrypted payload length: %d", lenn);
+        } else {
+            ESP_LOGE(TAG, "Failed to decrypt payload");
+            return 0;
+        }
+        pos = 0;  // inner pos
         if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_PATH) {
             ESP_LOGI(TAG, "PATH packet:NIY");
             return 0;
         }
         if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_REQ) {
             // timestamp 4 byte
-            uint32_t timestamp = *((uint32_t*)&data[pos]);
+            uint32_t timestamp = *((uint32_t*)&datadec[pos]);
             pos += 4;
-            uint8_t request_type = data[pos++];
+            uint8_t request_type = datadec[pos++];
             ESP_LOGI(TAG, "REQ packet:NIY");
             return 0;
         }
         if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_RESPONSE) {
             // timestamp 4 byte
-            uint32_t tag = *((uint32_t*)&data[pos]);
+            uint32_t tag = *((uint32_t*)&datadec[pos]);
             pos += 4;
             ESP_LOGI(TAG, "RESP packet:NIY");
             return 0;
         }
         if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_TXT_MSG) {
             // timestamp 4 byte
-            uint32_t timestamp = *((uint32_t*)&data[pos]);
+            uint32_t timestamp = *((uint32_t*)&datadec[pos]);
             pos += 4;
-            uint8_t msg_flags = data[pos++];
+            uint8_t msg_flags = datadec[pos++];
             uint8_t msg_attempts = msg_flags & 0x03;
             msg_flags = msg_flags >> 2;
             if (msg_flags == 2) {
@@ -452,7 +462,7 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
                 pos += 4;
             }
             uint16_t msg_len = len - pos;
-            std::string msg = std::string((const char*)&data[pos], msg_len);
+            std::string msg = std::string((const char*)&datadec[pos], msg_len);
             ESP_LOGI(TAG, "TXT_MSG packet: timestamp=%lu, flags=0x%02x, msg_len=%u, msg=%s", timestamp, msg_flags, msg_len, msg.c_str());
             return 1;
             /*
@@ -485,4 +495,162 @@ I (106019) MeshcoreCompact: TXT_MSG packet: timestamp=697046286, flags=0xcc, msg
         return 0;
     }
     return 0;
+}
+
+void MeshcoreCompact::sha256(uint8_t* hash, size_t hash_len, const uint8_t* msg, int msg_len) {
+    mbedtls_sha256_context sha256;
+    mbedtls_sha256_init(&sha256);
+    mbedtls_sha256_starts(&sha256, 0);
+    int ret = mbedtls_sha256_update(&sha256, msg, msg_len);
+    ret = mbedtls_sha256_finish(&sha256, hash);
+    (void)ret;
+    mbedtls_sha256_free(&sha256);
+};
+
+void MeshcoreCompact::sha256(uint8_t* hash, size_t hash_len, const uint8_t* frag1, int frag1_len, const uint8_t* frag2, int frag2_len) {
+    mbedtls_sha256_context sha256;
+    mbedtls_sha256_init(&sha256);
+    mbedtls_sha256_starts(&sha256, 0);
+    int ret = mbedtls_sha256_update(&sha256, frag1, frag1_len);
+    ret = mbedtls_sha256_update(&sha256, frag2, frag2_len);
+    ret = mbedtls_sha256_finish(&sha256, hash);
+    (void)ret;
+    mbedtls_sha256_free(&sha256);
+};
+
+int MeshcoreCompact::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+    if (src_len % 16 != 0) {
+        // Or handle this error appropriately
+        return 0;
+    }
+    mbedtls_aes_context aes_ctx;
+    uint8_t* dp = dest;
+    const uint8_t* sp = src;
+    // Initialize the AES context
+    mbedtls_aes_init(&aes_ctx);
+    // Set the decryption key. Note the use of `_setkey_dec`
+    // IMPORTANT: CIPHER_KEY_SIZE must be in BITS (e.g., 128, 192, 256)
+    mbedtls_aes_setkey_dec(&aes_ctx, shared_secret, CIPHER_KEY_SIZE * 8);
+
+    // Process all 16-byte blocks
+    for (int i = 0; i < src_len; i += 16) {
+        mbedtls_aes_crypt_ecb(
+            &aes_ctx,             // AES context
+            MBEDTLS_AES_DECRYPT,  // Decrypt mode
+            sp,                   // Source ciphertext block
+            dp                    // Destination plaintext block
+        );
+        dp += 16;
+        sp += 16;
+    }
+    // Clean up the context
+    mbedtls_aes_free(&aes_ctx);
+    // Return the total number of bytes processed
+    return sp - src;
+};
+int MeshcoreCompact::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+    mbedtls_aes_context aes_ctx;
+    uint8_t* dp = dest;
+    const uint8_t* sp = src;
+    int remaining_len = src_len;
+    // Initialize the AES context
+    mbedtls_aes_init(&aes_ctx);
+    // Set the encryption key.
+    // IMPORTANT: CIPHER_KEY_SIZE must be in BITS (e.g., 128, 192, 256)
+    mbedtls_aes_setkey_enc(&aes_ctx, shared_secret, CIPHER_KEY_SIZE * 8);
+    // Process all full 16-byte blocks
+    while (remaining_len >= 16) {
+        mbedtls_aes_crypt_ecb(
+            &aes_ctx,             // AES context
+            MBEDTLS_AES_ENCRYPT,  // Encrypt mode
+            sp,                   // Source block
+            dp                    // Destination block
+        );
+        dp += 16;
+        sp += 16;
+        remaining_len -= 16;
+    }
+
+    // Handle the final partial block with zero padding
+    if (remaining_len > 0) {
+        uint8_t tmp_block[16];
+        // Pad the temporary block with zeros
+        memset(tmp_block, 0, 16);
+        // Copy the remaining plaintext into the block
+        memcpy(tmp_block, sp, remaining_len);
+        // Encrypt the padded block
+        mbedtls_aes_crypt_ecb(
+            &aes_ctx,
+            MBEDTLS_AES_ENCRYPT,
+            tmp_block,
+            dp);
+        dp += 16;
+    }
+    // Clean up the context
+    mbedtls_aes_free(&aes_ctx);
+    // Return the total number of bytes written to the destination
+    return dp - dest;
+};
+int MeshcoreCompact::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+    int enc_len = encrypt(shared_secret, dest + CIPHER_MAC_SIZE, src, src_len);
+    const mbedtls_md_info_t* md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    // This single function performs the reset, update, and finalize steps.
+    int ret = mbedtls_md_hmac(
+        md_info,                 // Use SHA256
+        shared_secret,           // The key for the HMAC
+        PUB_KEY_SIZE,            // The length of the key
+        dest + CIPHER_MAC_SIZE,  // The message to authenticate
+        enc_len,                 // The length of the message
+        dest                     // The destination for the 32-byte MAC output
+    );
+    return 0;
+};
+int MeshcoreCompact::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+    if (src_len <= CIPHER_MAC_SIZE) {
+        return 0;  // Invalid source length
+    }
+    uint8_t calculated_mac[CIPHER_MAC_SIZE];
+    const uint8_t* received_mac = src;
+    const uint8_t* ciphertext = src + CIPHER_MAC_SIZE;
+    const int ciphertext_len = src_len - CIPHER_MAC_SIZE;
+    // 2. Calculate the HMAC of the ciphertext portion.
+    const mbedtls_md_info_t* md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    if (md_info == NULL) {
+        return 0;  // Internal error
+    }
+    int ret = mbedtls_md_hmac(
+        md_info,         // Use SHA256
+        shared_secret,   // The HMAC key
+        PUB_KEY_SIZE,    // Key length
+        ciphertext,      // The data to authenticate
+        ciphertext_len,  // Length of the data
+        calculated_mac   // Output buffer for the calculated MAC
+    );
+
+    if (ret != 0) {
+        return 0;  // HMAC calculation failed
+    }
+    // 3. 🛡️ Securely compare the received MAC with the calculated MAC.
+    if (secure_memcmp(received_mac, calculated_mac, CIPHER_MAC_SIZE) == 0) {
+        // 4. If MAC is valid, decrypt the ciphertext.
+        return decrypt(shared_secret, dest, ciphertext, ciphertext_len);
+    }
+
+    // If MACs do not match, return 0 to indicate authentication failure.
+    return 0;
+};
+
+int MeshcoreCompact::secure_memcmp(const void* a, const void* b, size_t size) {
+    const unsigned char* a_ptr = (const unsigned char*)a;
+    const unsigned char* b_ptr = (const unsigned char*)b;
+    unsigned int result = 0;
+
+    // This loop always runs for the full 'size' iterations.
+    // The bitwise operations prevent the compiler from optimizing it
+    // into a branch that could leak timing information.
+    for (size_t i = 0; i < size; i++) {
+        result |= a_ptr[i] ^ b_ptr[i];
+    }
+
+    return result;
 }

@@ -832,7 +832,7 @@ bool MeshtasticCompact::aes_decrypt_meshtastic_payload(const uint8_t* key, uint1
     int ret = mbedtls_aes_setkey_enc(&aes_ctx, key, keySize);
     if (ret != 0) {
         ESP_LOGE(TAG, "mbedtls_aes_setkey_enc failed with error: -0x%04x", -ret);
-        mbedtls_aes_free(&aes_ctx);
+        // mbedtls_aes_free(&aes_ctx);
         return false;
     }
     uint8_t nonce[16];
@@ -844,7 +844,7 @@ bool MeshtasticCompact::aes_decrypt_meshtastic_payload(const uint8_t* key, uint1
     ret = mbedtls_aes_crypt_ctr(&aes_ctx, len, &nc_off, nonce, stream_block, encrypted_in, decrypted_out);
     if (ret != 0) {
         ESP_LOGE(TAG, "mbedtls_aes_crypt_ctr failed with error: -0x%04x", -ret);
-        mbedtls_aes_free(&aes_ctx);
+        // mbedtls_aes_free(&aes_ctx);
         return false;
     }
     return true;

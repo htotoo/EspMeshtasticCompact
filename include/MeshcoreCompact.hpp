@@ -9,12 +9,24 @@
 #include "EspHal.h"
 #include "esp_random.h"
 #include "mbedtls/aes.h"
+#include "mbedtls/md.h"
 #include <string>
 #include <mutex>
 #include <condition_variable>
 #include <queue>
 #include <deque>
 #include "MeshcoreCompactStructs.hpp"
+#include "mbedtls/sha256.h"
+#include "mbedtls/constant_time.h"
+
+#define MAX_PACKET_PAYLOAD 184
+#define PUB_KEY_SIZE 32
+#define PRV_KEY_SIZE 64
+#define SEED_SIZE 32
+#define SIGNATURE_SIZE 64
+#define CIPHER_KEY_SIZE 16
+#define CIPHER_BLOCK_SIZE 16
+#define CIPHER_MAC_SIZE 2
 
 class MeshcoreCompact {
    public:
@@ -45,8 +57,14 @@ class MeshcoreCompact {
 
     // decoding
     int16_t ProcessPacket(uint8_t* data, int len, MeshcoreCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
+    void sha256(uint8_t* hash, size_t hash_len, const uint8_t* msg, int msg_len);
+    void sha256(uint8_t* hash, size_t hash_len, const uint8_t* frag1, int frag1_len, const uint8_t* frag2, int frag2_len);
+    int decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+    int encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+    int encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+    int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+    int secure_memcmp(const void* a, const void* b, size_t size);
 
-    // encode the protobuf message to bytes
     static void task_listen(void* pvParameters);  // Task for listening to the radio and processing incoming packets
     static void task_send(void* pvParameters);    // Task for sending packets from the out_queue
 
