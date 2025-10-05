@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <queue>
 #include <deque>
+#include "MeshcoreCompactStructs.hpp"
 
 class MeshcoreCompact {
    public:
@@ -40,10 +41,10 @@ class MeshcoreCompact {
     RadioType radio_type;
     bool RadioListen();    // inits the listening thread for the radio
     bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
-    // handlers
+                           // handlers
 
     // decoding
-    // int16_t ProcessPacket(uint8_t* data, int len, MeshtasticCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
+    int16_t ProcessPacket(uint8_t* data, int len, MeshcoreCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
 
     // encode the protobuf message to bytes
     static void task_listen(void* pvParameters);  // Task for listening to the radio and processing incoming packets

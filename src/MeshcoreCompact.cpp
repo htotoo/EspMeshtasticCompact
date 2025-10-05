@@ -347,7 +347,7 @@ void MeshcoreCompact::task_listen(void* pvParameters) {
                 if (mshcomp->onRaw) {
                     mshcomp->onRaw(rxData, rxLen);
                 }
-                // mshcomp->ProcessPacket(rxData, rxLen, mshcomp);
+                mshcomp->ProcessPacket(rxData, rxLen, mshcomp);
             }
 
             if (err < 0) {
@@ -378,4 +378,19 @@ bool MeshcoreCompact::RadioSendInit() {
     // Start the send task
     xTaskCreate(&task_send, "RadioSend", 1024 * 4, this, 5, NULL);
     return true;
+}
+
+int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* mshcomp) {
+    MCC_HEADER header;
+    size_t pos = header.parse(data, len);
+    if (pos == 0) {
+        ESP_LOGE(TAG, "Failed to parse MCC header");
+        return -1;
+    }
+    ESP_LOGI(TAG, "Received packet: route_type=%d, payload_type=%d, addr_format=%d, transport_codes=0x%08" PRIx32 ", path_length=%zu", (uint8_t)header.get_route_type(), (uint8_t)header.get_payload_type(), (uint8_t)header.get_addr_format(), header.transport_codes, header.path.size());
+    ESP_LOGI(TAG, "Path: ");
+    for (const auto& hop : header.path) {
+        ESP_LOGI(TAG, "  Hop: %ud", hop);
+    }
+    return 0;
 }
