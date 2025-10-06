@@ -380,8 +380,22 @@ bool MeshcoreCompact::RadioSendInit() {
     return true;
 }
 
+void MeshcoreCompact::intOnNodeInfo(MCC_Nodeinfo& nodeinfo) {
+    nodeinfo_db.addOrUpdate(nodeinfo);
+    if (onNodeInfo) {
+        onNodeInfo(nodeinfo);
+    }
+    ESP_LOGI(TAG, "timestamp=%lu, flags=0x%02x", nodeinfo.timestamp, nodeinfo.flags);
+    if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_LOCATION) {
+        ESP_LOGI(TAG, ", latitude_i=%lu, longitude_i=%lu", nodeinfo.latitude_i, nodeinfo.longitude_i);
+    }
+    if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_NAME) {
+        ESP_LOGI(TAG, ", name=%s", nodeinfo.name.c_str());
+    }
+}
+
 int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* mshcomp) {
-    MCC_HEADER header;
+    MCC_Header header;
     size_t pos = header.parse(data, len);
     if (pos == 0) {
         ESP_LOGE(TAG, "Failed to parse MCC header");
@@ -395,14 +409,9 @@ int16_t MeshcoreCompact::ProcessPacket(uint8_t* data, int len, MeshcoreCompact* 
     MCC_PAYLOAD_TYPE plt = header.get_payload_type();
 
     if (plt == MCC_PAYLOAD_TYPE::PAYLOAD_TYPE_ADVERT) {
-        MCC_NODEINFO nodeinfo;
-        nodeinfo.parse(data, pos, len);
-        ESP_LOGI(TAG, "timestamp=%lu, flags=0x%02x", nodeinfo.timestamp, nodeinfo.flags);
-        if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_LOCATION) {
-            ESP_LOGI(TAG, ", latitude_i=%lu, longitude_i=%lu", nodeinfo.latitude_i, nodeinfo.longitude_i);
-        }
-        if (nodeinfo.flags & (uint8_t)MCC_NODEINFO_FLAGS::HAS_NAME) {
-            ESP_LOGI(TAG, ", name=%s", nodeinfo.name.c_str());
+        MCC_Nodeinfo nodeinfo;
+        if (nodeinfo.parse(data, pos, len) > 0) {
+            intOnNodeInfo(nodeinfo);
         }
         return 1;
     }

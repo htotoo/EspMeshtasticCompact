@@ -47,7 +47,7 @@ enum class MCC_NODEINFO_FLAGS : uint8_t {
     HAS_NAME = 0x80         // appdata contains a node name
 };
 
-class MCC_HEADER {
+class MCC_Header {
    public:
     MCC_ROUTE_TYPE get_route_type() {
         return (MCC_ROUTE_TYPE)(header & 0x03);
@@ -91,8 +91,23 @@ class MCC_HEADER {
     std::vector<uint8_t> path;  // it'll store path_len too
 };
 
-class MCC_NODEINFO {
+class MCC_Nodeinfo {
    public:
+    bool operator==(const MCC_Nodeinfo& other) const {
+        return std::memcmp(pubkey, other.pubkey, sizeof(pubkey)) == 0;
+    }
+    MCC_Nodeinfo& operator=(const MCC_Nodeinfo& other) {
+        if (this != &other) {
+            std::memcpy(pubkey, other.pubkey, sizeof(pubkey));
+            timestamp = other.timestamp;
+            flags = other.flags;
+            latitude_i = other.latitude_i;
+            longitude_i = other.longitude_i;
+            name = other.name;
+        }
+        return *this;
+    }
+
     size_t parse(const uint8_t* data, size_t start_pos, size_t len) {
         if (len < 36 + start_pos) return 0;  // minimum size
         size_t pos = start_pos;

@@ -16,6 +16,7 @@
 #include <queue>
 #include <deque>
 #include "MeshcoreCompactStructs.hpp"
+#include "MeshcoreCompactNodeInfoDB.hpp"
 #include "mbedtls/sha256.h"
 #include "mbedtls/constant_time.h"
 
@@ -33,9 +34,12 @@ class MeshcoreCompact {
     MeshcoreCompact();
     ~MeshcoreCompact();
     bool RadioInit(RadioType radio_type, Radio_PINS& radio_pins, LoraConfig& lora_config);  // Initializes the radio with the given configuration and pins
+
     using OnRaw = void (*)(const uint8_t* data, size_t len);
+    using OnNodeInfo = void (*)(const MCC_Nodeinfo& info);
 
     void setOnRaw(OnRaw cb) { onRaw = cb; }
+    void setOnNodeInfo(OnNodeInfo cb) { onNodeInfo = cb; }
 
     void getLastSignalData(float& rssi_out, float& snr_out) {
         rssi_out = rssi;
@@ -49,11 +53,16 @@ class MeshcoreCompact {
     bool setRadioCodingRate(uint8_t cr);
     bool setRadioPower(int8_t power);
 
+    NodeInfoCoreDB nodeinfo_db;
+
    private:
     RadioType radio_type;
     bool RadioListen();    // inits the listening thread for the radio
     bool RadioSendInit();  // inits the sending thread for the radio. consumes the out_queue
                            // handlers
+
+    // internal events
+    void intOnNodeInfo(MCC_Nodeinfo& info);  // internal handler for nodeinfo packets
 
     // decoding
     int16_t ProcessPacket(uint8_t* data, int len, MeshcoreCompact* mshcomp);  // Process the packet, decode it, and call the appropriate handler
@@ -77,4 +86,5 @@ class MeshcoreCompact {
     bool need_run = true;  // thread exit flag
 
     OnRaw onRaw = nullptr;
+    OnNodeInfo onNodeInfo = nullptr;
 };
